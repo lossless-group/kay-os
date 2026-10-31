@@ -35,6 +35,7 @@ tags:
   - Composio
   - Agent-Memory
 publish: true
+type: Explorations
 ---
 
 # Customizing Hermes Agent through API

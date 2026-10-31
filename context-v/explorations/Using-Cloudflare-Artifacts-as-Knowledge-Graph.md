@@ -43,6 +43,7 @@ related:
   - "[[Memory-Layers-for-the-In-App-Chat-Package]]"
   - "[[Do-We-Need-a-Sandbox-Behind-Homebase]]"
   - "[[cloudflare-artifacts-interface]]"
+type: Explorations
 ---
 
 # Using Cloudflare Artifacts as Knowledge Graph
