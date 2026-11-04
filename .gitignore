@@ -119,3 +119,10 @@ $RECYCLE.BIN/
 .direnv/
 result
 result-*
+
+# ---- Mail: this repo is public. Mail and credentials live outside it. ---
+*.eml
+*.mbox
+accounts.toml
+index.sqlite*
+events.jsonl
