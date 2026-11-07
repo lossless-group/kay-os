@@ -1,0 +1,513 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   theme.css — kay-os/splash
+   Two-tier token system + three-mode contract per the Astro Knots convention.
+
+   Tier 1: NAMED tokens  (--color__signal, --font__display)
+           Mode-invariant raw values.
+
+   Tier 2: SEMANTIC tokens (--color-bg, --color-accent)
+           Reference Tier 1; rebound per <html data-mode="...">.
+
+   POSTURE — "the arrivals board": kay-os is for people with too many lives
+   arriving at once, so the page dresses like the board at a busy terminal.
+   A split-flap board is the hero, everything else is a ledger of dense
+   hairline rows with status lamps, the type is condensed and
+   all-caps for headlines, and the body face is Atkinson Hyperlegible,
+   drawn for readers who struggle to read. A faint dot-matrix behind it all.
+
+   Modes (dark is the default — the night desk):
+   - dark    : default; "night desk" — green-black, signal amber, phosphor mint.
+   - light   : "carbon copy" — buff paper, carbon-blue ink, a red stamp.
+   - vibrant : "all hands" — ultraviolet with hot pink and chartreuse.
+
+   The brand spine — amber + phosphor — is a departures board. Distinct from
+   hope-ai (apricot sunrise, serif), memopop (cyan + plum), augment-it
+   (magenta-iris), lfm (ink-violet + sienna), id-didi-sh (verdigris + copper).
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ─── Tier 1: NAMED tokens — raw values, mode-invariant ──────────────── */
+
+  /* Brand spine — the board */
+  --color__signal:          #ffb000;   /* split-flap amber */
+  --color__signal-deep:     #b87400;
+  --color__signal-soft:     #ffd98a;
+  --color__phosphor:        #6fe3b4;   /* status lamp: handled */
+  --color__phosphor-deep:   #17805a;
+  --color__phosphor-soft:   #c4f5e1;
+  --color__alarm:           #ff4f3a;   /* status lamp: needs you */
+  --color__alarm-deep:      #c42a17;
+  --color__carbon:          #1f3a8a;   /* carbon-copy ink */
+  --color__carbon-soft:     #4560b8;
+
+  /* Night axis */
+  --color__terminal-deep:   #070a09;
+  --color__terminal:        #0d1211;
+  --color__terminal-soft:   #151c1a;
+  --color__flap:            #111715;   /* one split-flap tile */
+  --color__uv-deep:         #0e0620;
+  --color__uv:              #170b33;
+  --color__uv-soft:         #231247;
+
+  /* Paper axis */
+  --color__buff:            #f3eddf;
+  --color__buff-soft:       #ebe3d0;
+  --color__buff-deep:       #ddd2b8;
+  --color__ink:             #17202a;
+  --color__ink-soft:        #3d4856;
+  --color__ink-dim:         #6c7480;
+
+  /* Typography — Tier 1.
+     Display: Big Shoulders Display (condensed, departures-board caps).
+     Sans:    Atkinson Hyperlegible Next (drawn for legibility).
+     Mono:    Atkinson Hyperlegible Mono (the board's tiles, counts). */
+  --font__display: 'Big Shoulders Display', 'Arial Narrow', Impact, sans-serif;
+  --font__sans:    'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font__mono:    'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Spacing — invariant */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* Radii — hardware is square; only the lamps are round. */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-pill: 2px;
+
+  --transition-fast: 140ms ease;
+  --transition-mid:  280ms ease;
+
+  color-scheme: dark;
+}
+
+/* ─── Tier 2: SEMANTIC — DARK MODE (default; "night desk") ────────────── */
+:root,
+:root[data-mode='dark'] {
+  --color-bg:           var(--color__terminal-deep);
+  --color-bg-soft:      var(--color__terminal);
+  --color-bg-elevated:  var(--color__terminal-soft);
+  --color-bg-card:      var(--color__terminal);
+  --color-bg-code:      #050706;
+
+  --color-text:         #ece7d8;
+  --color-text-soft:    #c3bfb1;
+  --color-text-dim:     #8d8b80;
+  --color-text-dimmer:  #6a6a61;
+  --color-text-faint:   #45473f;
+
+  --color-accent:       var(--color__signal);
+  --color-accent-soft:  var(--color__signal-soft);
+  --color-accent-warm:  var(--color__signal);
+  --color-accent-hot:   var(--color__alarm);
+
+  --color-thread:       var(--color__phosphor);
+  --color-thread-soft:  var(--color__phosphor-soft);
+
+  --color-border:       rgba(236, 231, 216, 0.10);
+  --color-border-strong: rgba(236, 231, 216, 0.22);
+  --color-border-accent: rgba(255, 176, 0, 0.55);
+
+  --shadow-glow:     0 0 40px rgba(255, 176, 0, 0.18);
+  --shadow-card:     0 1px 0 rgba(236, 231, 216, 0.04);
+  --shadow-elevated: 0 24px 60px -30px rgba(0, 0, 0, 0.9);
+
+  --gradient-thread:
+    linear-gradient(100deg,
+      var(--color__signal) 0%,
+      var(--color__signal-soft) 100%);
+
+  /* The board */
+  --board-bg:      #030504;
+  --board-frame:   #1c2321;
+  --flap-bg:       var(--color__flap);
+  --flap-seam:     rgba(0, 0, 0, 0.85);
+  --flap-text:     var(--color__signal);
+  --lamp-ok:       var(--color__phosphor);
+  --lamp-wait:     var(--color__signal);
+  --lamp-you:      var(--color__alarm);
+  --lamp-off:      #2a302e;
+  --dot-matrix:    rgba(236, 231, 216, 0.055);
+
+  color-scheme: dark;
+}
+
+/* ─── Tier 2: SEMANTIC — LIGHT MODE ("carbon copy") ───────────────────── */
+:root[data-mode='light'] {
+  --color-bg:           var(--color__buff);
+  --color-bg-soft:      var(--color__buff-soft);
+  --color-bg-elevated:  #faf6ec;
+  --color-bg-card:      #faf6ec;
+  --color-bg-code:      var(--color__buff-deep);
+
+  --color-text:         var(--color__ink);
+  --color-text-soft:    var(--color__ink-soft);
+  --color-text-dim:     var(--color__ink-dim);
+  --color-text-dimmer:  #8a8f96;
+  --color-text-faint:   #b3b2aa;
+
+  --color-accent:       var(--color__carbon);
+  --color-accent-soft:  var(--color__carbon-soft);
+  --color-accent-warm:  var(--color__signal-deep);
+  --color-accent-hot:   var(--color__alarm-deep);
+
+  --color-thread:       var(--color__phosphor-deep);
+  --color-thread-soft:  var(--color__phosphor);
+
+  --color-border:       rgba(23, 32, 42, 0.12);
+  --color-border-strong: rgba(23, 32, 42, 0.26);
+  --color-border-accent: rgba(31, 58, 138, 0.5);
+
+  --shadow-glow:     none;
+  --shadow-card:     0 1px 0 rgba(23, 32, 42, 0.06);
+  --shadow-elevated: 0 20px 40px -26px rgba(23, 32, 42, 0.35);
+
+  --gradient-thread:
+    linear-gradient(100deg,
+      var(--color__carbon) 0%,
+      var(--color__carbon-soft) 100%);
+
+  /* The board stays a board: a black slab printed on the paper. */
+  --board-bg:      #121614;
+  --board-frame:   #2a302e;
+  --flap-bg:       #1b211f;
+  --flap-seam:     rgba(0, 0, 0, 0.85);
+  --flap-text:     var(--color__signal);
+  --lamp-ok:       var(--color__phosphor);
+  --lamp-wait:     var(--color__signal);
+  --lamp-you:      var(--color__alarm);
+  --lamp-off:      #3a403e;
+  --dot-matrix:    rgba(23, 32, 42, 0.07);
+
+  color-scheme: light;
+}
+
+/* ─── Tier 2: SEMANTIC — VIBRANT MODE ("all hands") ───────────────────── */
+:root[data-mode='vibrant'] {
+  --color-bg:           var(--color__uv-deep);
+  --color-bg-soft:      var(--color__uv);
+  --color-bg-elevated:  var(--color__uv-soft);
+  --color-bg-card:      var(--color__uv);
+  --color-bg-code:      #080314;
+
+  --color-text:         #f6efff;
+  --color-text-soft:    #d6c8ef;
+  --color-text-dim:     #a08cc4;
+  --color-text-dimmer:  #7a68a0;
+  --color-text-faint:   #4c3d70;
+
+  --color-accent:       #ff3d8b;
+  --color-accent-soft:  #ff9cc4;
+  --color-accent-warm:  #d4ff3a;
+  --color-accent-hot:   #ff3d8b;
+
+  --color-thread:       #d4ff3a;
+  --color-thread-soft:  #ecff9e;
+
+  --color-border:       rgba(212, 255, 58, 0.14);
+  --color-border-strong: rgba(212, 255, 58, 0.3);
+  --color-border-accent: rgba(255, 61, 139, 0.6);
+
+  --shadow-glow:     0 0 60px rgba(255, 61, 139, 0.35);
+  --shadow-card:     0 1px 0 rgba(212, 255, 58, 0.08);
+  --shadow-elevated: 0 28px 60px -28px rgba(255, 61, 139, 0.45);
+
+  --gradient-thread:
+    linear-gradient(100deg, #ff3d8b 0%, #ffb000 50%, #d4ff3a 100%);
+
+  --board-bg:      #07021a;
+  --board-frame:   #2e1a5c;
+  --flap-bg:       #140a33;
+  --flap-seam:     rgba(0, 0, 0, 0.8);
+  --flap-text:     #d4ff3a;
+  --lamp-ok:       #d4ff3a;
+  --lamp-wait:     #ffb000;
+  --lamp-you:      #ff3d8b;
+  --lamp-off:      #2e2150;
+  --dot-matrix:    rgba(212, 255, 58, 0.06);
+
+  color-scheme: dark;
+}
+
+/* ─── Reset & base ────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+
+html {
+  scroll-behavior: smooth;
+  background: var(--color-bg);
+  transition: background var(--transition-mid);
+}
+
+body {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font__sans);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  overflow-x: hidden;
+  transition: background var(--transition-mid), color var(--transition-mid);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font__display);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+  text-underline-offset: 3px;
+  transition: color var(--transition-fast);
+}
+a:hover { text-decoration: underline; text-decoration-thickness: 1px; }
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+ul, ol { list-style: none; }
+img { max-width: 100%; height: auto; }
+
+::selection {
+  background: color-mix(in oklab, var(--color__signal) 45%, transparent);
+  color: var(--color-text);
+}
+
+/* ─── Background ornament — dot matrix ──────────────────────────────────
+   A faint grid of dots, like the unlit pixels of a display board, fading
+   out below the first screen. Pure CSS. */
+.bg-mesh {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 140vh;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, var(--dot-matrix) 1.2px, transparent 1.6px);
+  background-size: 14px 14px;
+  mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+}
+
+body > :not(.bg-mesh) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Utility primitives ─────────────────────────────────────────────── */
+
+.container {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+}
+
+.container-narrow {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+}
+
+.mono    { font-family: var(--font__mono); }
+.display { font-family: var(--font__display); }
+
+.eyebrow {
+  font-family: var(--font__mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+/* Section folio — a gate number: "G4 · THE COLONY". */
+.folio {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-family: var(--font__mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+.folio::before {
+  content: attr(data-num);
+  font-weight: 600;
+  color: var(--color-accent);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--color-border-accent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--color-accent) 8%, transparent);
+}
+
+.gradient-text {
+  background: var(--gradient-thread);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font__mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-soft);
+  background: color-mix(in oklab, var(--color-text) 4%, transparent);
+}
+.pill[data-status='Active'],
+.pill[data-status='Stable'],
+.pill[data-status='live'],
+.pill[data-status='Implementing'] {
+  color: var(--color-thread);
+  border-color: color-mix(in oklab, var(--color-thread) 50%, transparent);
+  background: color-mix(in oklab, var(--color-thread) 12%, transparent);
+}
+.pill[data-status='Beta'] {
+  color: var(--color-accent);
+  border-color: color-mix(in oklab, var(--color-accent) 50%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
+}
+.pill[data-status='Alpha'],
+.pill[data-status='Experiment'],
+.pill[data-status='planned'],
+.pill[data-status='Draft'] {
+  color: var(--color-accent-warm);
+  border-color: color-mix(in oklab, var(--color-accent-warm) 50%, transparent);
+  background: color-mix(in oklab, var(--color-accent-warm) 12%, transparent);
+}
+
+/* Stamp — a rubber stamp on a carbon copy: double rule, uppercase mono, a
+   hair of rotation. Used for statuses. */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 2px double currentColor;
+  border-radius: var(--radius-sm);
+  font-family: var(--font__mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-thread);
+  transform: rotate(-2deg);
+  background: color-mix(in oklab, currentColor 6%, transparent);
+}
+.stamp[data-ink='warm'] { color: var(--color-accent-warm); }
+.stamp[data-ink='accent'] { color: var(--color-accent); }
+.stamp[data-ink='dim']    { color: var(--color-text-dim); }
+
+.from-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font__mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-thread);
+  background: color-mix(in oklab, var(--color-thread) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-thread) 35%, transparent);
+}
+.from-tag::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-thread);
+}
+
+.chip {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font__mono);
+  font-size: 0.82em;
+  background: var(--color-bg-code);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-soft);
+  white-space: nowrap;
+}
+
+.ver-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font__mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 36%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 8%, transparent);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 12px 22px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font__sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+}
+.btn:hover {
+  border-color: var(--color-accent);
+  text-decoration: none;
+}
+.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-bg);
+}
+.btn-primary:hover {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+

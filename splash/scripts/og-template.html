@@ -1,0 +1,92 @@
+<!doctype html>
+<!--
+  kay-os share-image template (Technique B: rasterize the hero).
+  Rendered by scripts/render-og.sh at each format's size, e.g.
+  og-template.html?w=1200&h=1600. Landscape puts the headline left and a
+  small arrivals board right; tall sizes stack them. Colors and type mirror
+  DESIGN.md / src/styles/theme.css (dark "night desk" mode).
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Atkinson+Hyperlegible+Next:wght@400;600&family=Atkinson+Hyperlegible+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --w: 1200px; --h: 630px; --u: 1px; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: var(--w); height: var(--h); overflow: hidden; }
+  body {
+    position: relative;
+    font-family: 'Atkinson Hyperlegible Next', sans-serif;
+    color: #ece7d8;
+    background: #070a09 radial-gradient(circle at 1px 1px, rgba(236,231,216,.07) 1.2px, transparent 1.6px) 0 0 / calc(14 * var(--u)) calc(14 * var(--u));
+  }
+  .eye { font-family: 'Atkinson Hyperlegible Mono', monospace; letter-spacing: .2em; text-transform: uppercase; color: #8d8b80; font-size: calc(18 * var(--u)); }
+  .eye b { color: #ffb000; border: 1px solid rgba(255,176,0,.55); padding: 1px 6px; margin-right: 10px; letter-spacing: 0; }
+  h1 { font-family: 'Big Shoulders Display', sans-serif; font-weight: 900; text-transform: uppercase; line-height: .86; margin-top: calc(20 * var(--u)); font-size: calc(118 * var(--u)); }
+  h1 span { color: #ffb000; }
+  p { color: #c3bfb1; line-height: 1.4; margin-top: calc(24 * var(--u)); font-size: calc(26 * var(--u)); }
+  .brand { position: absolute; display: flex; align-items: center; gap: calc(12 * var(--u)); font-family: 'Big Shoulders Display', sans-serif; font-weight: 800; letter-spacing: .06em; font-size: calc(34 * var(--u)); }
+  .brand i { font-style: normal; color: #ffb000; }
+  .url { position: absolute; font-family: 'Atkinson Hyperlegible Mono', monospace; font-size: calc(18 * var(--u)); color: #8d8b80; }
+  .board { position: absolute; background: #030504; border: 3px solid #1c2321; border-radius: 4px; padding: calc(14 * var(--u)); font-family: 'Atkinson Hyperlegible Mono', monospace; box-shadow: 0 0 60px rgba(255,176,0,.15); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: calc(16 * var(--u)); padding: calc(11 * var(--u)) calc(6 * var(--u)); border-bottom: 1px solid #1c2321; }
+  .row:last-child { border-bottom: 0; }
+  .from { color: #ffb000; font-size: calc(15 * var(--u)); letter-spacing: .08em; width: 32%; }
+  .flaps { display: flex; gap: 2px; }
+  .flaps span { display: inline-grid; place-items: center; width: calc(22 * var(--u)); height: calc(30 * var(--u)); background: #111715; color: #ffb000; font-weight: 600; font-size: calc(15 * var(--u)); position: relative; }
+  .flaps span::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #000; }
+  .lamp { width: calc(13 * var(--u)); height: calc(13 * var(--u)); border-radius: 50%; flex: none; }
+  .ok { background: #6fe3b4; box-shadow: 0 0 10px #6fe3b4; }
+  .wait { background: #ffb000; box-shadow: 0 0 10px #ffb000; }
+  .you { background: #ff4f3a; box-shadow: 0 0 12px #ff4f3a; }
+
+  body.wide .copy { position: absolute; left: calc(72 * var(--u)); top: 9%; width: 50%; }
+  body.wide h1 { font-size: calc(96 * var(--u)); }
+  body.wide p { font-size: calc(23 * var(--u)); }
+  body.wide .board { right: calc(64 * var(--u)); top: 17%; width: 38%; }
+  body.wide .brand { left: calc(72 * var(--u)); bottom: 6%; }
+  body.wide .url { right: calc(64 * var(--u)); bottom: 7.5%; }
+  body.square p { display: none; }
+
+  body.tall .copy { position: absolute; left: 8%; right: 8%; top: 9%; }
+  body.tall h1 { font-size: calc(150 * var(--u)); }
+  body.tall .eye { font-size: calc(24 * var(--u)); }
+  body.tall p { font-size: calc(38 * var(--u)); }
+  body.tall .board { left: 8%; right: 8%; bottom: 12%; }
+  body.tall .row { padding: calc(14 * var(--u)) calc(8 * var(--u)); }
+  body.tall .from { font-size: calc(24 * var(--u)); }
+  body.tall .flaps span { width: calc(34 * var(--u)); height: calc(46 * var(--u)); font-size: calc(24 * var(--u)); }
+  body.tall .lamp { width: calc(20 * var(--u)); height: calc(20 * var(--u)); }
+  body.tall .brand { left: 8%; bottom: 4.5%; font-size: calc(48 * var(--u)); }
+  body.tall .url { right: 8%; bottom: 5.3%; font-size: calc(24 * var(--u)); }
+  /* 2:3 and 9:16: bigger headline, board pulled up into the middle */
+  body.xtall .copy { top: 12%; }
+  body.xtall h1 { font-size: calc(196 * var(--u)); }
+  body.xtall .board { bottom: 22%; }
+</style>
+</head>
+<body>
+  <div class="copy">
+    <div class="eye"><b>G1</b>An agent colony</div>
+    <h1>Too many lives,<br><span>arriving at once.</span></h1>
+    <p>For the self-important and the overwhelmed, who are usually the same person.</p>
+  </div>
+  <div class="board">
+    <div class="row"><span class="from">INBOX 3/7</span><span class="flaps"><span>R</span><span>O</span><span>U</span><span>T</span><span>E</span><span>D</span><span></span><span></span></span><span class="lamp ok"></span></div>
+    <div class="row"><span class="from">CAL 2/4</span><span class="flaps"><span>C</span><span>O</span><span>N</span><span>F</span><span>L</span><span>I</span><span>C</span><span>T</span></span><span class="lamp you"></span></div>
+    <div class="row"><span class="from">FUND II</span><span class="flaps"><span>D</span><span>R</span><span>A</span><span>F</span><span>T</span><span>E</span><span>D</span><span></span></span><span class="lamp wait"></span></div>
+    <div class="row"><span class="from">TANGENT</span><span class="flaps"><span>P</span><span>A</span><span>R</span><span>K</span><span>E</span><span>D</span><span></span><span></span></span><span class="lamp ok"></span></div>
+    <div class="row"><span class="from">INBOX 6/7</span><span class="flaps"><span>A</span><span>R</span><span>C</span><span>H</span><span>I</span><span>V</span><span>E</span><span>D</span></span><span class="lamp ok"></span></div>
+  </div>
+  <div class="brand"><svg width="40" height="40" viewBox="0 0 64 64" style="width:1em;height:1em"><rect x="2" y="2" width="60" height="60" rx="6" fill="#030504" stroke="#1c2321" stroke-width="3"/><circle cx="14" cy="14" r="6" fill="#6fe3b4"/><circle cx="32" cy="14" r="6" fill="#2a302e"/><circle cx="50" cy="14" r="6" fill="#6fe3b4"/><circle cx="14" cy="32" r="6" fill="#ffb000"/><circle cx="32" cy="32" r="6" fill="#6fe3b4"/><circle cx="50" cy="32" r="6" fill="#2a302e"/><circle cx="14" cy="50" r="6" fill="#6fe3b4"/><circle cx="32" cy="50" r="6" fill="#6fe3b4"/><circle cx="50" cy="50" r="6" fill="#ff4f3a"/></svg><span>KAY<i>-</i>OS</span></div>
+  <div class="url">lossless-group.github.io/kay-os</div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const w = +(q.get('w') || 1200), h = +(q.get('h') || 630);
+  const r = document.documentElement.style;
+  r.setProperty('--w', w + 'px'); r.setProperty('--h', h + 'px');
+  r.setProperty('--u', (w / 1200) + 'px');
+  document.body.className = w / h > 1.2 ? 'wide' : w === h ? 'tall square' : h / w > 1.45 ? 'tall xtall' : 'tall';
+</script>
+</body>
+</html>

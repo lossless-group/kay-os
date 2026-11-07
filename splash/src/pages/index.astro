@@ -1,0 +1,704 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import { STATIC_SEO, REPO_URL, STUDY_URL } from '@lib/seo';
+import { formatDate, toDate } from '@lib/date';
+
+const base = import.meta.env.BASE_URL;
+
+// The arrivals board. Illustrative, not anyone's real mail.
+// lamp: ok (handled), wait (in hand), you (needs you).
+const board = [
+  { from: 'INBOX 3/7', item: 'Term sheet redlines', due: '17:00', status: 'ROUTED', lamp: 'ok' },
+  { from: 'CAL 2/4', item: 'Board call ↔ school pickup', due: 'THU', status: 'CONFLICT', lamp: 'you' },
+  { from: 'FUND II', item: 'Quarterly LP update', due: 'FRI', status: 'DRAFTED', lamp: 'wait' },
+  { from: 'BOARD', item: 'Deck review: open slide 4', due: 'NOW', status: '2 MIN', lamp: 'you' },
+  { from: 'TANGENT', item: 'New company idea, 23:41', due: '—', status: 'PARKED', lamp: 'ok' },
+  { from: 'INBOX 6/7', item: '1,284 newsletters', due: '—', status: 'ARCHIVED', lamp: 'ok' },
+];
+const STATUS_WIDTH = 8;
+
+const counts = [
+  { n: '07', label: 'inboxes' },
+  { n: '04', label: 'calendars' },
+  { n: '12', label: 'involvements' },
+  { n: '01', label: 'of you' },
+];
+
+// From the study: where executive-function skills put the intervention.
+const loci = [
+  {
+    where: 'The reply itself',
+    who: 'i-have-adhd, dsh-adhd-copilot',
+    buys: 'Works in any harness, with no state to keep',
+    costs: "Can't see the time, remember yesterday, or follow up",
+  },
+  {
+    where: "The session's task flow",
+    who: 'nd-skills, adhd-claude-skill, adhd-copilot, adhd-skills, adhd-study-coach',
+    buys: 'Catches drift, spirals, and stuck loops as they happen',
+    costs: 'The model keeps its own counts, and nothing runs between sessions',
+  },
+  {
+    where: 'State outside the chat',
+    who: 'claude-adhd-skills, audhd-executive-function',
+    buys: 'A clock, memory across sessions, and nudges',
+    costs: "Setup, and one more source of interruption unless it's capped",
+  },
+];
+
+// House rules: patterns the study found across authors who never cite each other.
+const rules = [
+  {
+    rule: 'End on a two-minute step.',
+    why: 'Starting is the bottleneck. Every reply ends on one small, concrete action.',
+    src: 'i-have-adhd · adhd-copilot · dsh-adhd-copilot',
+  },
+  {
+    rule: 'Three choices, never more.',
+    why: 'A menu of nine is another decision you have to make.',
+    src: 'nd-skills · adhd-copilot · audhd-executive-function',
+  },
+  {
+    rule: "Count, don't feel.",
+    why: 'Triggers are numbers: 8 research turns, 3 repeated failures, 4+ open threads.',
+    src: 'nd-skills',
+  },
+  {
+    rule: "Park it, don't refuse it.",
+    why: "The 23:41 idea goes to the workstream it belongs to, and comes back at the weekly review.",
+    src: 'adhd-claude-skill',
+  },
+  {
+    rule: 'Score effort, not outcomes.',
+    why: "Count what was sent, shipped, and published. Showing up counts. Shame doesn't.",
+    src: 'audhd-executive-function · nd-skills',
+  },
+  {
+    rule: 'Ask before remembering.',
+    why: 'The colony proposes what to keep about you, and writes it only when you approve.',
+    src: 'adhd-copilot',
+  },
+  {
+    rule: 'Silent by default.',
+    why: 'An agent that can reach you between sessions gets a nudge budget, and you set it.',
+    src: 'nd-skills (nd-interrupt-budget)',
+  },
+];
+
+const colony = [
+  {
+    name: 'Archivist',
+    job: 'Mirrors every inbox into one private archive and keeps it current every five minutes. Read-only: it cannot mark, move, or delete.',
+    status: 'LIVE',
+    lamp: 'ok',
+  },
+  {
+    name: 'Herald',
+    job: 'A hosted Hermes agent you reach from your phone. Replies follow the phone-screen rules: answer first, short lists, a two-minute next step.',
+    status: 'NEXT',
+    lamp: 'wait',
+  },
+  {
+    name: 'Gatekeeper',
+    job: 'Holds the account keys so other agents never do. They get only what it lets through, and every request is logged.',
+    status: 'PLANNED',
+    lamp: 'off',
+  },
+  {
+    name: 'Timekeeper',
+    job: 'Reads every calendar and knows what time it is, so the Thursday double-booking turns up on Monday.',
+    status: 'PLANNED',
+    lamp: 'off',
+  },
+  {
+    name: 'Parking Attendant',
+    job: 'Parks each tangent in the workstream it belongs to, one repo per workstream, and hands it back at review.',
+    status: 'PLANNED',
+    lamp: 'off',
+  },
+  {
+    name: 'Steward',
+    job: 'One page a day where every item is text to copy, a link to click, or a box to check. Nothing else gets on the page.',
+    status: 'PLANNED',
+    lamp: 'off',
+  },
+];
+
+const latest = (await getCollection('changelog'))
+  .filter((e) => e.data.publish !== false)
+  .map((e) => ({ e, d: toDate(e.data.date_modified ?? e.data.date_created ?? e.data.date) }))
+  .sort((a, b) => (b.d?.getTime() ?? 0) - (a.d?.getTime() ?? 0) || (a.e.id < b.e.id ? 1 : -1))
+  .slice(0, 3);
+const docCount = (await getCollection('context-v')).filter((e) => e.data.publish !== false).length;
+---
+
+<BaseLayout title={STATIC_SEO.root.title} description={STATIC_SEO.root.description}>
+  <main>
+    <!-- ── Hero: the arrivals board ──────────────────────────────────── -->
+    <section class="hero">
+      <div class="container">
+        <p class="folio" data-num="G1">Arrivals · all terminals</p>
+        <h1 class="hero__title">
+          Too many lives,<br /> <span class="hero__accent">arriving at once.</span>
+        </h1>
+        <div class="hero__lede">
+          <p>
+            kay-os is a colony of personal agents for the self-important and the
+            overwhelmed, who are usually the same person. The colony takes the
+            arrivals. You take the two-minute step.
+          </p>
+          <div class="hero__ctas">
+            <a class="btn btn-primary" href="#colony">Meet the colony</a>
+            <a class="btn" href="#study">What the study found</a>
+          </div>
+        </div>
+
+        <div class="board" role="table" aria-label="An illustrative arrivals board">
+          <div class="board__row board__row--head" role="row">
+            <span role="columnheader">From</span>
+            <span role="columnheader">Item</span>
+            <span role="columnheader">Due</span>
+            <span role="columnheader">Status</span>
+          </div>
+          {board.map((r, i) => (
+            <div class="board__row" role="row" style={`--row:${i}`}>
+              <span class="board__from" role="cell">{r.from}</span>
+              <span class="board__item" role="cell">{r.item}</span>
+              <span class="board__due" role="cell">{r.due}</span>
+              <span class="board__status" role="cell" aria-label={r.status}>
+                <span class="flaps" aria-hidden="true">
+                  {r.status.padEnd(STATUS_WIDTH, ' ').split('').map((c, j) => (
+                    <span class="flap" style={`--i:${j}`}>{c === ' ' ? ' ' : c}</span>
+                  ))}
+                </span>
+                <span class="lamp" data-lamp={r.lamp}></span>
+              </span>
+            </div>
+          ))}
+          <p class="board__note">Illustrative board. Nobody's real mail.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Premise ───────────────────────────────────────────────────── -->
+    <section class="section" id="premise">
+      <div class="container">
+        <p class="folio" data-num="G2">The premise</p>
+        <div class="tally">
+          {counts.map((c) => (
+            <div class="tally__cell">
+              <span class="tally__n">{c.n}</span>
+              <span class="tally__label">{c.label}</span>
+            </div>
+          ))}
+        </div>
+        <div class="premise">
+          <h2>It isn't discipline.<br />It's throughput.</h2>
+          <div class="premise__body">
+            <p>
+              You founded something, sit on two boards, advise a fund, and your
+              kid's school sends six emails a week. Each involvement brings its own
+              inbox, its own calendar, and its own people who think they're your
+              top priority. Some of them are right.
+            </p>
+            <p>
+              You're right that your time matters. That's exactly why you shouldn't
+              be sorting newsletters, reconciling four calendars, or holding
+              tomorrow's school form in your head at 23:41. ADHD and twice-exceptional
+              minds are built for the hard problem in front of them, not for keeping
+              a hundred small promises on time.
+            </p>
+            <p>
+              kay-os gives the small promises to a colony of agents, each with one
+              job, so the one of you can work on the thing only you can do.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── The study ─────────────────────────────────────────────────── -->
+    <section class="section" id="study">
+      <div class="container">
+        <p class="folio" data-num="G3">The study</p>
+        <div class="study__head">
+          <h2>We read the ADHD agent skills before writing one.</h2>
+          <p>
+            <a href={STUDY_URL} target="_blank" rel="noopener">The study</a> pins nine
+            open-source agent skills built to help with ADHD and executive function,
+            and profiles each against its source, citing file and line. The question was
+            where each one puts its help. The answer came in three places, and{' '}
+            <strong>no entry covers all three</strong>.
+          </p>
+        </div>
+
+        <div class="ledger" role="table" aria-label="Where executive-function skills intervene">
+          <div class="ledger__row ledger__row--head" role="row">
+            <span role="columnheader">Where it helps</span>
+            <span role="columnheader">Who does it</span>
+            <span role="columnheader">What it buys</span>
+            <span role="columnheader">What it costs</span>
+          </div>
+          {loci.map((l) => (
+            <div class="ledger__row" role="row">
+              <span class="ledger__where" role="cell">{l.where}</span>
+              <span class="ledger__who mono" role="cell">{l.who}</span>
+              <span role="cell">{l.buys}</span>
+              <span class="ledger__cost" role="cell">{l.costs}</span>
+            </div>
+          ))}
+          <div class="ledger__row ledger__row--ours" role="row">
+            <span class="ledger__where" role="cell">All three</span>
+            <span class="ledger__who mono" role="cell">kay-os</span>
+            <span role="cell">
+              Replies shaped for a phone screen, a session that notices drift, and
+              agents that can see the clock and remember yesterday
+            </span>
+            <span class="ledger__cost" role="cell">
+              The interruption problem gets worse, so the nudge budget is a
+              requirement, not an option
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── House rules ───────────────────────────────────────────────── -->
+    <section class="section" id="rules">
+      <div class="container">
+        <p class="folio" data-num="G4">House rules</p>
+        <h2 class="section__title">Seven rules every agent in the colony follows.</h2>
+        <p class="section__sub">
+          Each one recurs across authors in the study who never cite each other.
+          That's the best evidence we have that they work.
+        </p>
+        <ol class="rules">
+          {rules.map((r, i) => (
+            <li class="rules__row">
+              <span class="rules__n">{String(i + 1).padStart(2, '0')}</span>
+              <span class="rules__rule">{r.rule}</span>
+              <span class="rules__why">{r.why}</span>
+              <span class="rules__src mono">{r.src}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+
+    <!-- ── The colony ────────────────────────────────────────────────── -->
+    <section class="section" id="colony">
+      <div class="container">
+        <p class="folio" data-num="G5">The colony</p>
+        <h2 class="section__title">One job each. One of them works today.</h2>
+        <p class="section__sub">
+          Small agents with narrow permissions, rather than one assistant holding every
+          key. Email is untrusted input, so an agent that reads your mail doesn't also
+          get to send or delete it without you.
+        </p>
+        <ul class="roster">
+          {colony.map((m) => (
+            <li class="roster__row" data-status={m.status}>
+              <span class="lamp" data-lamp={m.lamp} aria-hidden="true"></span>
+              <span class="roster__name">{m.name}</span>
+              <span class="roster__job">{m.job}</span>
+              <span class="stamp" data-ink={m.status === 'LIVE' ? undefined : m.status === 'NEXT' ? 'warm' : 'dim'}>
+                {m.status}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <!-- ── The log ───────────────────────────────────────────────────── -->
+    <section class="section" id="log">
+      <div class="container">
+        <p class="folio" data-num="G6">Departures</p>
+        <h2 class="section__title">What shipped lately.</h2>
+        <ul class="log">
+          {latest.map(({ e, d }) => (
+            <li class="log__row">
+              <span class="log__date mono">{d ? formatDate(d) : ''}</span>
+              <a class="log__title" href={`${base}changelog/${e.id}/`}>{e.data.title ?? e.id}</a>
+              {e.data.lede && <span class="log__lede">{e.data.lede}</span>}
+            </li>
+          ))}
+        </ul>
+        <p class="log__more">
+          <a href={`${base}changelog/`}>The full changelog →</a>
+          <a href={`${base}context-v/`}>{docCount} explorations and blueprints →</a>
+          <a href={REPO_URL} target="_blank" rel="noopener">The repo →</a>
+        </p>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  /* ── Hero ───────────────────────────────────────────────────────────── */
+  .hero {
+    padding: var(--space-16) 0 var(--space-12);
+  }
+  .hero__title {
+    margin-top: var(--space-5);
+    font-size: clamp(3.2rem, 9vw, 7.4rem);
+    font-weight: 900;
+    line-height: 0.88;
+  }
+  .hero__accent { color: var(--color-accent); }
+  .hero__lede {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-8);
+    align-items: end;
+    margin-top: var(--space-8);
+    padding-bottom: var(--space-8);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .hero__lede p {
+    max-width: 56ch;
+    font-size: 1.15rem;
+    color: var(--color-text-soft);
+  }
+  .hero__ctas {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  /* ── The board ──────────────────────────────────────────────────────── */
+  .board {
+    margin-top: var(--space-10);
+    padding: var(--space-4);
+    background: var(--board-bg);
+    border: 3px solid var(--board-frame);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-elevated), var(--shadow-glow);
+    font-family: var(--font__mono);
+    color: var(--flap-text);
+  }
+  .board__row {
+    display: grid;
+    grid-template-columns: 9rem minmax(0, 1fr) 5rem auto;
+    gap: var(--space-4);
+    align-items: center;
+    padding: 10px var(--space-2);
+    border-bottom: 1px solid color-mix(in oklab, var(--board-frame) 70%, transparent);
+    animation: row-in 420ms ease-out both;
+    animation-delay: calc(var(--row, 0) * 110ms + 150ms);
+  }
+  .board__row--head {
+    animation: none;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: color-mix(in oklab, var(--flap-text) 55%, transparent);
+  }
+  .board__from {
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    color: color-mix(in oklab, var(--flap-text) 75%, #fff 0%);
+  }
+  .board__item {
+    font-size: 1.02rem;
+    color: #ece7d8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .board__due {
+    font-size: 0.88rem;
+    letter-spacing: 0.06em;
+  }
+  .board__status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .flaps { display: inline-flex; gap: 2px; }
+  .flap {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 1.35em;
+    height: 1.75em;
+    background: var(--flap-bg);
+    border-radius: 2px;
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--flap-text);
+    animation: flap-in 360ms cubic-bezier(.3,.6,.4,1) both;
+    animation-delay: calc(var(--row, 0) * 110ms + var(--i) * 45ms + 250ms);
+    transform-origin: 50% 50%;
+  }
+  .flap::after {
+    /* the seam across the middle of each tile */
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: 50%;
+    height: 1px;
+    background: var(--flap-seam);
+  }
+  .board__note {
+    margin-top: var(--space-3);
+    padding: 0 var(--space-2);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: color-mix(in oklab, var(--flap-text) 45%, transparent);
+  }
+
+  /* Both animations start from a readable frame, so a screenshot or a
+     link-preview capture taken before they run still shows the board. */
+  @keyframes row-in {
+    from { transform: translateY(4px); }
+    to   { transform: none; }
+  }
+  @keyframes flap-in {
+    0%   { transform: rotateX(-35deg); }
+    55%  { transform: rotateX(14deg); }
+    100% { transform: rotateX(0); }
+  }
+
+  /* Status lamps — the only round thing on the page. */
+  .lamp {
+    flex: none;
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--lamp-off);
+  }
+  .lamp[data-lamp='ok']   { background: var(--lamp-ok);   box-shadow: 0 0 10px var(--lamp-ok); }
+  .lamp[data-lamp='wait'] { background: var(--lamp-wait); box-shadow: 0 0 10px var(--lamp-wait); }
+  .lamp[data-lamp='you']  {
+    background: var(--lamp-you);
+    box-shadow: 0 0 12px var(--lamp-you);
+    animation: blink 1.6s steps(2, jump-none) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0.35; } }
+
+  /* ── Sections ───────────────────────────────────────────────────────── */
+  .section {
+    padding: var(--space-20) 0 0;
+  }
+  .section h2,
+  .section__title {
+    margin-top: var(--space-4);
+    font-size: clamp(2.2rem, 5vw, 3.6rem);
+    max-width: 22ch;
+  }
+  .section__sub {
+    margin-top: var(--space-4);
+    max-width: 62ch;
+    color: var(--color-text-soft);
+  }
+
+  /* Premise */
+  .tally {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    margin-top: var(--space-6);
+    border-top: 1px solid var(--color-border-strong);
+    border-bottom: 1px solid var(--color-border-strong);
+  }
+  .tally__cell {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-5) var(--space-4);
+  }
+  .tally__cell + .tally__cell { border-left: 1px solid var(--color-border); }
+  .tally__n {
+    font-family: var(--font__display);
+    font-weight: 900;
+    font-size: clamp(3rem, 7vw, 5.4rem);
+    line-height: 0.9;
+    color: var(--color-text);
+  }
+  .tally__cell:last-child .tally__n { color: var(--color-accent-hot); }
+  .tally__label {
+    margin-top: var(--space-2);
+    font-family: var(--font__mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+  }
+  .premise {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: var(--space-10);
+    margin-top: var(--space-10);
+  }
+  .premise h2 { margin-top: 0; }
+  .premise__body p + p { margin-top: var(--space-4); }
+  .premise__body p { color: var(--color-text-soft); }
+
+  /* Study */
+  .study__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-10);
+    align-items: end;
+  }
+  .study__head p { color: var(--color-text-soft); }
+  .study__head strong { color: var(--color-text); }
+
+  .ledger {
+    margin-top: var(--space-10);
+    border-top: 2px solid var(--color-text);
+  }
+  .ledger__row {
+    display: grid;
+    grid-template-columns: 11rem 1fr 1.2fr 1.2fr;
+    gap: var(--space-5);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.95rem;
+    color: var(--color-text-soft);
+  }
+  .ledger__row--head {
+    font-family: var(--font__mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+  }
+  .ledger__where {
+    font-family: var(--font__display);
+    font-weight: 800;
+    font-size: 1.25rem;
+    text-transform: uppercase;
+    line-height: 1.05;
+    color: var(--color-text);
+  }
+  .ledger__who { font-size: 0.78rem; color: var(--color-thread); }
+  .ledger__cost { color: var(--color-text-dim); }
+  .ledger__row--ours {
+    border-bottom: 2px solid var(--color-text);
+    background: color-mix(in oklab, var(--color-accent) 7%, transparent);
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+  .ledger__row--ours .ledger__where,
+  .ledger__row--ours .ledger__who { color: var(--color-accent); }
+
+  /* Rules */
+  .rules {
+    margin-top: var(--space-10);
+    border-top: 2px solid var(--color-text);
+  }
+  .rules__row {
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr) minmax(0, 1.3fr) 14rem;
+    gap: var(--space-5);
+    align-items: baseline;
+    padding: var(--space-5) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .rules__n {
+    font-family: var(--font__display);
+    font-weight: 900;
+    font-size: 1.8rem;
+    color: var(--color-accent);
+    line-height: 1;
+  }
+  .rules__rule {
+    font-family: var(--font__display);
+    font-weight: 800;
+    font-size: 1.55rem;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+  .rules__why { color: var(--color-text-soft); }
+  .rules__src {
+    font-size: 0.74rem;
+    color: var(--color-text-dim);
+    text-align: right;
+  }
+
+  /* Colony roster */
+  .roster {
+    margin-top: var(--space-10);
+    border-top: 2px solid var(--color-text);
+  }
+  .roster__row {
+    display: grid;
+    grid-template-columns: 1.2rem 13rem minmax(0, 1fr) 7rem;
+    gap: var(--space-5);
+    align-items: center;
+    padding: var(--space-5) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .roster__row[data-status='PLANNED'] .roster__name { color: var(--color-text-dim); }
+  .roster__name {
+    font-family: var(--font__display);
+    font-weight: 800;
+    font-size: 1.7rem;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  .roster__job { color: var(--color-text-soft); }
+  .roster__row .stamp { justify-self: end; }
+
+  /* Log */
+  .log {
+    margin-top: var(--space-8);
+    border-top: 2px solid var(--color-text);
+  }
+  .log__row {
+    display: grid;
+    grid-template-columns: 9rem minmax(0, 1fr);
+    column-gap: var(--space-5);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .log__date {
+    font-size: 0.8rem;
+    color: var(--color-text-dim);
+    padding-top: 4px;
+  }
+  .log__title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--color-text);
+  }
+  .log__lede {
+    grid-column: 2;
+    color: var(--color-text-soft);
+    font-size: 0.95rem;
+  }
+  .log__more {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+    margin-top: var(--space-6);
+    font-family: var(--font__mono);
+    font-size: 0.85rem;
+  }
+
+  /* ── Narrow screens ─────────────────────────────────────────────────── */
+  @media (max-width: 860px) {
+    .hero__lede,
+    .premise,
+    .study__head { grid-template-columns: 1fr; gap: var(--space-6); }
+    .board__row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+    .board__row--head { display: none; }
+    .board__from { grid-column: 1; }
+    .board__due { grid-column: 2; grid-row: 1; justify-self: end; }
+    .board__item { grid-column: 1 / -1; }
+    .board__status { grid-column: 1 / -1; }
+    .tally { grid-template-columns: repeat(2, 1fr); }
+    .tally__cell:nth-child(3) { border-left: 0; }
+    .tally__cell:nth-child(n+3) { border-top: 1px solid var(--color-border); }
+    .ledger__row { grid-template-columns: 1fr; gap: var(--space-2); }
+    .ledger__row--head { display: none; }
+    .rules__row { grid-template-columns: 2.6rem minmax(0, 1fr); row-gap: var(--space-2); }
+    .rules__why, .rules__src { grid-column: 2; text-align: left; }
+    .roster__row { grid-template-columns: 1.2rem minmax(0, 1fr) auto; row-gap: var(--space-2); }
+    .roster__job { grid-column: 2 / -1; }
+    .log__row { grid-template-columns: 1fr; }
+    .log__lede { grid-column: 1; }
+  }
+</style>

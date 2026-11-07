@@ -1,0 +1,51 @@
+---
+/**
+ * The kay-os mark + logotype. The mark is a 3×3 panel of status lamps, a few
+ * lit: a colony of small agents, each reporting in. The logotype sets
+ * "KAY-OS" in the condensed display caps of the arrivals board. Colors come
+ * from tokens, so it pivots with the mode.
+ */
+interface Props {
+  size?: number;
+  markOnly?: boolean;
+}
+const { size = 28, markOnly = false } = Astro.props;
+// Which lamps are lit, and with what: ok, wait, you, or off.
+const lamps = ['ok', 'off', 'ok', 'wait', 'ok', 'off', 'ok', 'ok', 'you'];
+---
+
+<span class="logo" style={`--logo-size:${size}px`}>
+  <svg class="logo__mark" viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+    <rect x="2" y="2" width="60" height="60" rx="4" fill="var(--board-bg)" stroke="var(--board-frame)" stroke-width="3" />
+    {lamps.map((l, i) => (
+      <circle
+        cx={14 + (i % 3) * 18}
+        cy={14 + Math.floor(i / 3) * 18}
+        r="6"
+        fill={l === 'off' ? 'var(--lamp-off)' : `var(--lamp-${l})`}
+      />
+    ))}
+  </svg>
+  {!markOnly && (
+    <span class="logo__type">KAY<span class="logo__dash">-</span>OS</span>
+  )}
+</span>
+
+<style>
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--logo-size) * 0.32);
+    color: var(--color-text);
+    line-height: 1;
+  }
+  .logo__mark { flex: none; }
+  .logo__type {
+    font-family: var(--font__display);
+    font-weight: 800;
+    font-size: calc(var(--logo-size) * 0.95);
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+  .logo__dash { color: var(--color-accent); }
+</style>
