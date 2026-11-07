@@ -36,3 +36,42 @@ Non-Gmail accounts take `--host imap.example.com`. Search uses
   delete without a human approving.
 
 Tests: `python3 -m unittest mail/test_kaymail.py`
+
+### Cloudflare R2 and other machines
+
+`mail/r2.sh` copies the archive to a private R2 bucket and pulls it down
+elsewhere. One machine syncs mail and pushes; the others pull and read.
+
+```bash
+mail/r2.sh check        # keys work? what's in the bucket?
+mail/r2.sh push         # on the syncing machine: new raw mail + a fresh index
+mail/r2.sh pull         # anywhere else: the index, enough to search and read
+mail/r2.sh pull --raw   # also every original .eml
+```
+
+The search index holds every message's text, so a machine with only the index
+can search and read mail. Raw files are named by their hash and never change,
+so pushes only send what's new and never overwrite.
+
+### Secrets
+
+Every secret lives in 1Password and is read at run time. Nothing below is
+written to disk or committed.
+
+| Secret | Where it comes from | Where it lives | Who needs it |
+|---|---|---|---|
+| Mail app passwords | Google account → App passwords, one per mailbox | `~/.config/kay-os/mail/accounts.toml`, on the syncing machine only | `kaymail.py sync` |
+| R2 access key ID + secret | Cloudflare → R2 → Manage API tokens, "Object Read & Write", this bucket only | 1Password, `Personal` vault, the bucket's API Credential item | `r2.sh`, any computer |
+| R2 endpoint | Cloudflare → R2 → the bucket's S3 API URL: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` | same item | same |
+| Bucket name | What you named the bucket (`kay-os-mail`) | not secret: `KAYOS_R2_BUCKET` | same |
+
+`r2.sh` reads three fields from that item, named exactly `Access Key ID`,
+`Secret Access Key`, and `S3 API Endpoint`. It finds the item by its 1Password
+ID; set `KAYOS_OP_ITEM` and `KAYOS_OP_VAULT` to use a different one. It reads
+the keys once per run and keeps them only in that run's memory.
+
+Each computer needs the 1Password app with CLI integration turned on
+(Settings → Developer) and rclone: `brew install rclone` on macOS,
+`sudo pacman -S rclone` on Arch/Omarchy. On NixOS, `r2.sh` runs rclone through
+`nix run` if it isn't installed. The iPhone holds no keys: it will reach the
+archive through a connector in the Claude app, signed in like any other.

@@ -1,0 +1,14 @@
+{
+  "name": "kay-os-sync-worker",
+  "private": true,
+  "type": "module",
+  "description": "Keeps the kay-os mail archive current from Cloudflare: read-only IMAP into R2.",
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/smoke.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
+  }
+}
