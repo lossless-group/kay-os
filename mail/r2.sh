@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copy the mail archive to Cloudflare R2, or pull it down on another machine.
-# Keys come from 1Password at run time and are never written to disk.
+# Keys come from kay-os/.env (gitignored) if it exists, else from 1Password.
 #
 # Usage:
 #   mail/r2.sh check    confirm the keys work and show what's in the bucket
@@ -8,19 +8,28 @@
 #   mail/r2.sh pull     download the search index (enough to search and read mail)
 #   mail/r2.sh pull --raw   also download every original .eml
 #
-# Needs: the 1Password CLI (`op`, signed in) and rclone.
-# Keys: the 1Password item described under "Secrets" in the README.
+# Needs: rclone, and either kay-os/.env or the 1Password CLI (`op`, signed in).
+# Keys: described under "Secrets" in the README.
 set -euo pipefail
 
-vault="${KAYOS_OP_VAULT:-Personal}"
-item="${KAYOS_OP_ITEM:-zqaaxeiwxhlarwydfmdumiow7e}"   # "Cloudlfare kay-os-mail"
+env_file="$(cd "$(dirname "$0")/.." && pwd)/.env"
+if [ -f "$env_file" ]; then
+  set -a; . "$env_file"; set +a
+  export RCLONE_CONFIG_KAYR2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+  export RCLONE_CONFIG_KAYR2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+  export RCLONE_CONFIG_KAYR2_ENDPOINT="$R2_ENDPOINT"
+  export KAYR2_RESOLVED=1
+fi
+
+vault="${KAYOS_OP_VAULT:-Lossless Accounts}"
+item="${KAYOS_OP_ITEM:-kzjkc4imuewgr7gdorgohh4w7u}"   # "Cloudlfare kay-os-mail"
 bucket_name="${KAYOS_R2_BUCKET:-kay-os-mail}"
 data="${KAYMAIL_DATA:-$HOME/.local/share/kay-os/mail}"
 config="${KAYMAIL_CONFIG:-$HOME/.config/kay-os/mail/accounts.toml}"
 
 die() { echo "r2.sh: $*" >&2; exit 1; }
 
-command -v op >/dev/null || die "needs the 1Password CLI (op). https://developer.1password.com/docs/cli/get-started/"
+[ -n "${KAYR2_RESOLVED:-}" ] || command -v op >/dev/null || die "needs the 1Password CLI (op). https://developer.1password.com/docs/cli/get-started/"
 if command -v rclone >/dev/null; then
   rclone=(rclone)
 elif command -v nix >/dev/null; then
