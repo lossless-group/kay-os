@@ -541,35 +541,43 @@ def cmd_watch(args):
         time.sleep(args.interval)
 
 
-def cmd_search(args):
-    db = open_db()
+def search(db, query=None, account=None, sender=None, since=None, until=None, limit=25, relevance=False):
+    """Rows matching an FTS5 query and filters. Raises ValueError on a bad query."""
     where, params = ["m.is_primary=1"], []
-    if args.account:
+    if account:
         where.append("m.account=?")
-        params.append(args.account)
-    if args.sender:
+        params.append(account)
+    if sender:
         where.append("m.from_addr LIKE ?")
-        params.append(f"%{args.sender}%")
-    if args.since:
+        params.append(f"%{sender}%")
+    if since:
         where.append("m.date >= ?")
-        params.append(args.since)
-    if args.until:
+        params.append(since)
+    if until:
         where.append("m.date < ?")
-        params.append(args.until)
-    if args.query:
+        params.append(until)
+    if query:
         sql = ("SELECT m.id, m.account, m.date, m.from_addr, m.subject, m.labels, m.thread_id, "
                "snippet(messages_fts, 3, '[', ']', '...', 24) AS snippet "
                "FROM messages_fts JOIN messages m ON m.id = messages_fts.rowid "
                "WHERE messages_fts MATCH ? AND " + " AND ".join(where))
-        params.insert(0, args.query)
-        sql += " ORDER BY rank" if args.relevance else " ORDER BY m.date DESC"
+        params.insert(0, query)
+        sql += " ORDER BY rank" if relevance else " ORDER BY m.date DESC"
     else:
         sql = ("SELECT m.id, m.account, m.date, m.from_addr, m.subject, m.labels, m.thread_id, '' AS snippet "
                "FROM messages m WHERE " + " AND ".join(where) + " ORDER BY m.date DESC")
     try:
-        rows = db.execute(sql + " LIMIT ?", (*params, args.limit)).fetchall()
+        return db.execute(sql + " LIMIT ?", (*params, limit)).fetchall()
     except sqlite3.OperationalError as err:
-        sys.exit(f'Bad search query ({err}). Quote exact phrases: \'"term sheet"\'')
+        raise ValueError(f'Bad search query ({err}). Quote exact phrases: \'"term sheet"\'') from err
+
+
+def cmd_search(args):
+    db = open_db()
+    try:
+        rows = search(db, args.query, args.account, args.sender, args.since, args.until, args.limit, args.relevance)
+    except ValueError as err:
+        sys.exit(str(err))
     for row in rows:
         if args.json:
             print(json.dumps(dict(row), ensure_ascii=False))

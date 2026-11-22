@@ -35,7 +35,30 @@ Non-Gmail accounts take `--host imap.example.com`. Search uses
   you a message, so agents reading it shouldn't also hold tools that can send or
   delete without a human approving.
 
-Tests: `python3 -m unittest mail/test_kaymail.py`
+Tests: `python3 -m unittest mail/test_kaymail.py mail/test_kaymcp.py`
+
+### Agents: search, read, draft
+
+`mail/kaymcp.py` puts the archive in front of agents on this machine as an MCP
+server with three tools: `search_mail`, `read_message` (with the rest of its
+thread), and `draft_reply`. It's registered in `.mcp.json`, so Claude Code
+sessions opened in this repo get it. Every call is logged to
+`logs/mcp-calls.jsonl` in the mail data directory.
+
+`draft_reply` saves a threaded reply in the Drafts folder of the account the
+mail arrived on. **Nothing is ever sent:** you open the draft, edit it, and
+press send. Drafting logs in with a second app password, separate from the
+one sync uses, so you can turn it off without stopping the archive:
+
+```bash
+python3 mail/drafts.py add you@gmail.com --name "Your Name"   # prompts for a second app password
+python3 mail/drafts.py reply 1234 "Tuesday at 2 works."         # same thing from the terminal
+```
+
+Both app passwords can do anything the account can; keeping them apart is
+about revoking one without the other, not about limiting either. Where this
+is headed (sending, then scheduling across calendars) is in
+`context-v/explorations/Replying-and-Scheduling-on-My-Behalf.md`.
 
 ### Cloudflare R2 and other machines
 
