@@ -106,3 +106,7 @@ Trust can then grow one tool at a time instead of all at once.
 Put a small read-only MCP server in front of the mail archive (`search` and
 `show`) with a token just for Hermes and a call log. Connect Hermes to that
 instead of Gmail, and see what it asks for.
+
+Read-only is only the start. Replying, sending and scheduling across calendars
+are in [[Replying-and-Scheduling-on-My-Behalf]], which adds a `draft_reply`
+tool to this first step.

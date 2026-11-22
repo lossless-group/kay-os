@@ -258,6 +258,8 @@ whatever agent reads it. Two rules follow:
 
 The provider stays read-only. If triage should ever label or archive in Gmail
 itself, that's a separate, write-capable credential, added deliberately.
+Drafting, sending and scheduling follow the same rule; see
+[[Replying-and-Scheduling-on-My-Behalf]].
 
 ### Contact sync targets
 
