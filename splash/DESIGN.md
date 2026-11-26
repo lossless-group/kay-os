@@ -113,6 +113,19 @@ drawn in the dark "night desk" tokens. Regenerate with
 `scripts/render-og.sh`; it archives any image it replaces to
 `.ogimage-archive/` (gitignored).
 
+### Trademark pack
+
+All under `public/brand/`, outlined to paths (an `<img>` cannot load web fonts).
+
+| Piece | File | Notes |
+|---|---|---|
+| appIcon | `appIcon__Kay-OS.svg` | The 3×3 lamp panel; same art as `public/favicon.svg` |
+| favicon | `../favicon.svg` | |
+| wordmark | `wordmark__Kay-OS--{Dark,Light}-Mode.svg` | "KAY-OS" in Big Shoulders Display 800, +0.06em, dash in `--color-accent` (signal amber dark, carbon light), as `Logo.astro` sets it |
+| trademark | `trademark__Kay-OS--{Dark,Light}-Mode.svg` | Panel + wordmark at `Logo.astro`'s proportions (gap = 0.32 × mark) |
+
+The panel keeps its dark board in both lockups; only the wordmark pivots.
+
 ## Do's and Don'ts
 
 - Do keep the board illustrative. It never shows real mail, names, or addresses.
