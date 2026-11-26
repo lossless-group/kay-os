@@ -100,3 +100,64 @@ Each computer needs the 1Password app with CLI integration turned on
 `sudo pacman -S rclone` on Arch/Omarchy. On NixOS, `r2.sh` runs rclone through
 `nix run` if it isn't installed. The iPhone holds no keys: it will reach the
 archive through a connector in the Claude app, signed in like any other.
+
+#### Doppler (being set up, 2026-11-26)
+
+[Doppler](https://doppler.com) is being added for the secrets kay-os runs on.
+Its main job is syncing them into the Cloudflare Worker, so `ACCOUNTS` stops
+being pasted in by hand. The proposed split: **1Password** keeps personal
+logins, 2-Step Verification codes, and backup codes. **Doppler** holds what the
+code reads: mail app passwords, R2 keys, and the Worker's account list. Until
+that's settled, 1Password stays the source of truth, and nothing here reads
+from Doppler yet.
+
+Doppler sorts secrets as project → environment → config. Its starter template
+makes three environments (Development, Staging, Production), but kay-os has
+only one: the laptop and the Worker are both the real thing. So:
+
+1. In the Doppler dashboard, create a project named `kay-os`. Keep
+   **Production** (config `prd`), and delete Development and Staging in the
+   project's settings, or ignore them. `dev_personal` is a per-person copy
+   inside Development; a one-person project doesn't need it.
+2. Install the CLI. On NixOS, add `doppler` to `environment.systemPackages` in
+   `/etc/nixos/configuration.nix`, or for now
+   `nix profile install nixpkgs#doppler`. On macOS, `brew install dopplerhq/cli/doppler`.
+3. Log in. This opens a browser:
+
+   ```bash
+   doppler login
+   ```
+
+4. In the kay-os checkout, link the directory to the project and config. The
+   choice is saved in `~/.doppler/`, not in the repo:
+
+   ```bash
+   cd ~/code/lossless-monorepo/ai-labs/kay-os
+   doppler setup --project kay-os --config prd
+   ```
+
+5. Add secrets in the dashboard or from the CLI. Names are UPPER_SNAKE_CASE,
+   one per mailbox and purpose, for example:
+
+   | Secret | Holds |
+   |---|---|
+   | `KAYOS_MAIL_HUMAIN_APP_PASSWORD` | the `kay-os sync` app password for michael@humain.vc |
+   | `KAYOS_MAIL_HUMAIN_DRAFTS_PASSWORD` | the `kay-os drafts` app password, if drafting is on |
+
+   ```bash
+   doppler secrets set KAYOS_MAIL_HUMAIN_APP_PASSWORD   # then paste, Enter, a line with just ".", Enter
+   doppler secrets                                       # list them
+   ```
+
+   Run without a value, `secrets set` reads it from the next lines you type,
+   up to a line holding only `.`. That keeps the password out of your shell
+   history, but the paste **is shown on screen**, so do it with nobody
+   watching, and never inside an agent session's `!` prompt, whose output is
+   saved in the transcript.
+
+Not wired up yet: `kaymail.py add` still reads the password from a hidden
+prompt and saves a plain-text copy in `accounts.toml`. Having `doppler run`
+supply it instead takes a small change to kaymail. The Doppler → Cloudflare
+Workers sync for `ACCOUNTS` is also still to do. How to create a mail app
+password in the first place:
+`context-v/blueprints/Connecting-a-Google-Workspace-Mailbox.md`.
