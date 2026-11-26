@@ -1,0 +1,4 @@
+[submodule "studies/study-email-toolkits-agents"]
+	path = studies/study-email-toolkits-agents
+	url = https://github.com/lossless-group/study-email-toolkits-agents.git
+	branch = development
