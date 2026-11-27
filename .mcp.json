@@ -11,6 +11,10 @@
     "vimcal": {
       "type": "http",
       "url": "https://mcp.vimcal.com/mcp"
+    },
+    "superhuman": {
+      "type": "http",
+      "url": "https://mcp.mail.superhuman.com/mcp"
     }
   }
 }
