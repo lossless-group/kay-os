@@ -7,6 +7,8 @@ import { syncAccount, type Account, type Bucket, type SyncState } from "./sync.t
 interface Env {
   MAIL: Bucket;
   SYNC: DurableObjectNamespace<MailboxSync>;
+  /** The mail index (D1); filled from C2 on. */
+  INDEX: D1Database;
   /** JSON list of {address, password, host?}; a wrangler secret. */
   ACCOUNTS: string;
 }

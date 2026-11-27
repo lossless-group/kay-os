@@ -4,6 +4,7 @@ import json
 import os
 import re
 import socketserver
+import sqlite3
 import stat
 import sys
 import tempfile
@@ -283,6 +284,55 @@ class KaymailTest(unittest.TestCase):
         (checkout / ".git").mkdir(parents=True)
         with self.assertRaises(SystemExit):
             kaymail.private_dir(checkout / "mail")
+
+
+class CloudSchemaParityTest(unittest.TestCase):
+    """The Worker's D1 index (sync-worker/migrations) must keep the laptop's table shapes."""
+
+    TABLES = ("messages", "messages_fts", "attachments", "message_attachments", "attachment_scans")
+    # Laptop-fetched mail has no Gmail UID in R2; see migrations/0001_index.sql.
+    MAY_BE_NULL_IN_D1 = {("messages", "mailbox"), ("messages", "uidvalidity"), ("messages", "uid")}
+
+    @staticmethod
+    def shape(db):
+        tables = {t: db.execute(f"PRAGMA table_info({t})").fetchall() for t in CloudSchemaParityTest.TABLES}
+        # Named indexes and the ones UNIQUE and PRIMARY KEY create, with their columns.
+        indexes = {
+            t: sorted(
+                (name, unique, origin, db.execute(f"PRAGMA index_info({name})").fetchall())
+                for _, name, unique, origin, _ in db.execute(f"PRAGMA index_list({t})")
+            )
+            for t in CloudSchemaParityTest.TABLES
+        }
+        return tables, indexes
+
+    def test_d1_migrations_match_kaymail_schema(self):
+        laptop = sqlite3.connect(":memory:")
+        laptop.executescript(kaymail.SCHEMA)
+        cloud = sqlite3.connect(":memory:")
+        migrations = sorted((Path(__file__).parent.parent / "sync-worker" / "migrations").glob("*.sql"))
+        self.assertTrue(migrations)
+        for path in migrations:
+            cloud.executescript(path.read_text())
+
+        laptop_tables, laptop_indexes = self.shape(laptop)
+        cloud_tables, cloud_indexes = self.shape(cloud)
+        for table in self.TABLES:
+            with self.subTest(table=table):
+                expected = laptop_tables[table]
+                self.assertTrue(expected, f"{table} missing from kaymail.SCHEMA")
+                actual = [
+                    (cid, name, kind, 1 if (table, name) in self.MAY_BE_NULL_IN_D1 else notnull, default, pk)
+                    for cid, name, kind, notnull, default, pk in cloud_tables[table]
+                ]
+                self.assertEqual(actual, expected)
+        # The NULL allowance is a real difference, not a stale exemption.
+        nullable = {(name, notnull) for _, name, _, notnull, _, _ in cloud_tables["messages"]}
+        for _, column in self.MAY_BE_NULL_IN_D1:
+            self.assertIn((column, 0), nullable)
+        self.assertEqual(cloud_indexes, laptop_indexes)
+        # Not compared: mailboxes holds the laptop's IMAP cursors, which the Worker keeps in
+        # Durable Object storage.
 
 
 if __name__ == "__main__":

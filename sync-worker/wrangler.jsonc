@@ -8,6 +8,13 @@
   // 7am, 11am, 3pm and 7pm US Central (UTC-6), a few times a day.
   "triggers": { "crons": ["0 1,13,17,21 * * *"] },
   "r2_buckets": [{ "binding": "MAIL", "bucket_name": "kay-os-mail" }],
+  // The index: kaymail's tables, created by migrations/ (see migrations/0001_index.sql).
+  "d1_databases": [{
+    "binding": "INDEX",
+    "database_name": "kay-os-mail-index",
+    "database_id": "e23c087c-9638-432e-9f3a-1980a6412fcd",
+    "migrations_dir": "migrations"
+  }],
   "durable_objects": { "bindings": [{ "name": "SYNC", "class_name": "MailboxSync" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MailboxSync"] }],
   "observability": { "enabled": true }
