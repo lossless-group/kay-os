@@ -10,7 +10,7 @@ authors:
 augmented_with:
   - Claude Code on Claude Opus 5.5
 at_semantic_version: 0.0.0.1
-status: Open
+status: Resolved
 site_uuid: 437aeb8e-1ed8-4406-9159-9c118010830b
 hex_code: sot3rw
 summary: >-
@@ -55,3 +55,13 @@ column at index time instead.
 
 `search_mail` with no query returns a non-empty preview for every message with
 a text body.
+
+## Resolved (2026-11-27)
+
+`search_mail` with no query reads the first 2,000 characters of each body and
+returns a one-line preview (`preview()` in `connector/src/tools.ts`): quoted
+lines and everything from an "On … wrote:" line dropped, whitespace collapsed,
+cut at 160 characters, inside the same untrusted-data markers. Reading the
+body for up to 200 rows was fine on D1, so no `preview` column was needed.
+Test: "listing recent mail gives each message a preview without the quoted
+reply". The laptop's `kaymail.py search` still returns no preview there.

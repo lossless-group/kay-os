@@ -10,7 +10,7 @@ authors:
 augmented_with:
   - Claude Code on Claude Opus 5.5
 at_semantic_version: 0.0.0.1
-status: Open
+status: Resolved
 site_uuid: b921a379-1ce9-4911-b9d2-cfa012d24bb4
 hex_code: iiqai6
 summary: >-
@@ -71,3 +71,17 @@ The conclusion is wrong; the complaint is right.
 
 The same two-word search puts the email about the deal first, and every
 result's excerpt shows both words or names the field the other one is in.
+
+## Resolved (2026-11-27)
+
+- **Relevance by default** for keyword searches: `ORDER BY bm25(messages_fts,
+  10, 3, 1, 1, 2), date DESC` (subject, from, to, body, attachments), so a word
+  in the subject counts ten times one in the body. `relevance: false` sorts
+  newest first.
+- **Why it matched:** results carry `subject_match`, a subject excerpt, beside
+  the body `snippet`.
+- **The tool description says how queries work:** words are ANDed; `OR`,
+  quotes, prefixes, and `subject:` are available.
+- Test: "a keyword search ranks the email about it above newer ones that
+  mention it in passing". The laptop's `kaymail.py search` keeps its old
+  ordering for now.

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MAX_RESULT_CHARS } from "../src/markers.ts";
+import { preview } from "../src/tools.ts";
 import { ACCOUNT, RESOURCE, block, connector, deck, eml, leadingJson } from "./fixtures.ts";
 
 type Row = Record<string, unknown>;
@@ -15,7 +16,7 @@ test("search_mail finds the deck by full text, with kaymail's columns and snippe
   assert.equal(b.after, "");
   const rows = JSON.parse(b.inside) as Row[];
   assert.equal(rows.length, 1);
-  assert.deepEqual(Object.keys(rows[0]), ["id", "account", "date", "from_addr", "subject", "labels", "thread_id", "snippet"]);
+  assert.deepEqual(Object.keys(rows[0]), ["id", "account", "date", "from_addr", "subject", "labels", "thread_id", "snippet", "subject_match"]);
   assert.equal(rows[0].id, id);
   assert.equal(rows[0].subject, "Our deck");
   assert.match(rows[0].snippet as string, /\[invite\]/);
@@ -150,4 +151,35 @@ test("results stay under Claude's result cap", async () => {
   const { text } = await c.call("search_mail", { limit: 200 });
   assert.ok(text.length <= MAX_RESULT_CHARS, `${text.length}`);
   assert.match(block(text).inside, /\[\.\.\. result cut at \d+ characters\]$/);
+});
+
+test("a keyword search ranks the email about it above newer ones that mention it in passing", async () => {
+  const c = await connector();
+  const about = await c.add(eml({ Subject: "Orion SPV allocation", Date: "Mon, 02 Nov 2026 10:00:00 +0000" },
+    "The Orion SPV closes Friday."));
+  for (let d = 10; d < 13; d++) {
+    await c.add(eml({ Subject: `Weekly notes ${d}`, Date: `Mon, ${d} Nov 2026 10:00:00 +0000` },
+      "Long update about many things. ".repeat(30) + "Someone asked about Orion and an SPV in passing."));
+  }
+  const rows = JSON.parse(block((await c.call("search_mail", { query: "orion spv" })).text).inside) as Row[];
+  assert.equal(rows.length, 4, "every word must appear: all four have both");
+  assert.equal(rows[0].id, about.id, "the one with the words in its subject comes first");
+  assert.match(rows[0].subject_match as string, /\[Orion\]/);
+  const newest = JSON.parse(block((await c.call("search_mail", { query: "orion spv", relevance: false })).text).inside) as Row[];
+  assert.equal(newest.length, 4, "relevance: false still finds them all (sorted by date instead)");
+});
+
+test("listing recent mail gives each message a preview without the quoted reply", async () => {
+  const c = await connector();
+  await c.add(eml({ Subject: "Re: dinner", Date: "Mon, 02 Nov 2026 10:00:00 +0000" },
+    "Tuesday works for me.\n\nOn Mon, Nov 2, 2026 at 9:00 AM Ana <ana@example.com> wrote:\n> How about Tuesday?"));
+  const [row] = JSON.parse(block((await c.call("search_mail", {})).text).inside) as Row[];
+  assert.equal(row.snippet, "Tuesday works for me.");
+});
+
+test("preview drops quoted lines, collapses whitespace, and cuts long text", () => {
+  assert.equal(preview("> quoted\nKept   line\n\nsecond"), "Kept line second");
+  assert.equal(preview(null), "");
+  const long = preview("word ".repeat(100));
+  assert.ok(long.length <= 160 && long.endsWith("…"));
 });

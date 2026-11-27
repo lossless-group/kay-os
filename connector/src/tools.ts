@@ -19,9 +19,12 @@ const MAX_THREAD = 50;
 export const TOOLS = [
   {
     name: "search_mail",
-    description: ("Full-text search across every archived mailbox, newest first. Returns message ids, "
-      + "accounts, dates, senders, subjects and snippets. Query uses SQLite FTS5 syntax: "
-      + 'term*, "exact phrase", subject:invoice, a OR b. Omit query to list recent mail.'),
+    description: ("Full-text search across every archived mailbox. With a query, the best matches come "
+      + "first (a word in the subject counts more than one in a quoted reply), newest first among equals; "
+      + "with no query, the most recent mail, each with a short preview of its body. Returns message ids, "
+      + "accounts, dates, senders, subjects, and excerpts showing where the words matched. "
+      + "Query syntax (SQLite FTS5): words are ANDed, so every word must appear somewhere in the message; "
+      + 'use OR for either, "exact phrase" for adjacency, term* for prefixes, subject:invoice for one field.'),
     inputSchema: {
       type: "object",
       properties: {
@@ -31,7 +34,8 @@ export const TOOLS = [
         since: { type: "string", description: "YYYY-MM-DD" },
         until: { type: "string", description: "YYYY-MM-DD" },
         limit: { type: "integer", default: 25, maximum: 200 },
-        relevance: { type: "boolean", description: "best match first instead of newest first" },
+        relevance: { type: "boolean", default: true,
+          description: "with a query: best match first (default); false sorts newest first instead" },
       },
     },
     annotations: { readOnlyHint: true },
@@ -93,6 +97,28 @@ export interface ToolContext {
   logged: Record<string, unknown>;
 }
 
+/** FTS5 columns are subject, from_addr, to_addr, body, attachments; a subject hit counts most. */
+const BM25_WEIGHTS = [10.0, 3.0, 1.0, 1.0, 2.0];
+/** How much of the body to read for a preview, and how long the preview is. */
+const PREVIEW_SOURCE_CHARS = 2000;
+const PREVIEW_CHARS = 160;
+
+/**
+ * The start of a body as a one-line preview: quoted reply text (lines starting ">" and everything
+ * from an "On … wrote:" line) dropped, whitespace collapsed, cut at PREVIEW_CHARS.
+ */
+export function preview(body: unknown): string {
+  if (typeof body !== "string" || !body) return "";
+  const lines: string[] = [];
+  for (const line of body.split(/\r?\n/)) {
+    if (/^\s*On\b.{0,200}\bwrote:\s*$/i.test(line)) break;
+    if (/^\s*>/.test(line)) continue;
+    lines.push(line);
+  }
+  const text = lines.join(" ").replace(/\s+/g, " ").trim();
+  return text.length > PREVIEW_CHARS ? `${text.slice(0, PREVIEW_CHARS - 1).trimEnd()}…` : text;
+}
+
 /** kaymail.search */
 async function searchMail(ctx: ToolContext, args: Args): Promise<string> {
   const where = ["m.is_primary=1"];
@@ -112,19 +138,27 @@ async function searchMail(ctx: ToolContext, args: Args): Promise<string> {
   const limit = limitOf(args, 25, 200);
   let sql: string;
   if (query) {
+    // Relevance by default: FTS5's bm25 with the subject weighted over the body, so the email
+    // *about* something outranks ones that mention it once in a long thread. The subject excerpt
+    // is returned beside the body one, so a word that matched in the subject is visible.
+    const newest = args.relevance === false;
     sql = "SELECT m.id, m.account, m.date, m.from_addr, m.subject, m.labels, m.thread_id, "
-      + "snippet(messages_fts, 3, '[', ']', '...', 24) AS snippet "
+      + "snippet(messages_fts, 3, '[', ']', '...', 24) AS snippet, "
+      + "snippet(messages_fts, 0, '[', ']', '...', 12) AS subject_match "
       + "FROM messages_fts JOIN messages m ON m.id = messages_fts.rowid "
       + "WHERE messages_fts MATCH ? AND " + where.join(" AND ")
-      + (bool(args, "relevance") ? " ORDER BY rank" : " ORDER BY m.date DESC");
+      + (newest ? " ORDER BY m.date DESC"
+        : ` ORDER BY bm25(messages_fts, ${BM25_WEIGHTS.join(", ")}), m.date DESC`);
     params.unshift(query);
   } else {
-    sql = "SELECT m.id, m.account, m.date, m.from_addr, m.subject, m.labels, m.thread_id, '' AS snippet "
+    sql = "SELECT m.id, m.account, m.date, m.from_addr, m.subject, m.labels, m.thread_id, "
+      + `substr(m.body, 1, ${PREVIEW_SOURCE_CHARS}) AS snippet `
       + "FROM messages m WHERE " + where.join(" AND ") + " ORDER BY m.date DESC";
   }
   let rows: unknown[];
   try {
     rows = await ctx.index.all(sql + " LIMIT ?", ...params, limit);
+    if (!query) rows = (rows as { snippet?: unknown }[]).map((r) => ({ ...r, snippet: preview(r.snippet) }));
   } catch (err) {
     // As kaymail.search turns any sqlite3.OperationalError into this message.
     const msg = ((err as Error)?.message ?? String(err)).replace(/^D1_ERROR:\s*/, "");
