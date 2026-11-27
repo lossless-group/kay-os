@@ -10,3 +10,4 @@ okf_version: "0.2"
 * [Blueprints](blueprints/) - How things are built and run
 * [Mirrors](mirrors/) - How things are set up right now
 * [Issues](issues/) - Problems hit, and how they were found and fixed
+* [Reminders](reminders/) - Short corrections, so a mistake is made once
