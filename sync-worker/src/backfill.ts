@@ -82,6 +82,19 @@ function metaStatement(db: Db, account: string, text: string): DbStatement | nul
   );
 }
 
+/**
+ * Messages indexed before their meta file was read have no conversation id. Once the account's
+ * meta is all in r2_meta (from the Worker's meta/ files, or pushed from the laptop by
+ * mail/push_meta_to_d1.py), copy each known thread_id onto the rows still missing one.
+ */
+export async function fillThreadIds(db: Db, account: string): Promise<void> {
+  await db.prepare(`UPDATE messages SET thread_id = (SELECT r.thread_id FROM r2_meta r
+        WHERE r.account = messages.account AND r.sha256 = messages.sha256)
+      WHERE account = ? AND (thread_id IS NULL OR thread_id = '')
+        AND EXISTS (SELECT 1 FROM r2_meta r WHERE r.account = messages.account
+                    AND r.sha256 = messages.sha256 AND r.thread_id IS NOT NULL)`).bind(account).run();
+}
+
 async function inChunks<T>(db: Db, sql: (marks: string) => string, account: string, shas: string[]): Promise<T[]> {
   const rows: T[] = [];
   for (let i = 0; i < shas.length; i += IN_CHUNK) {
@@ -117,7 +130,10 @@ export async function backfillIndex(
       }
       for (let i = 0; i < rows.length; i += 100) await db.batch(rows.slice(i, i + 100));
       state.metaCursor = page.truncated ? page.cursor : undefined;
-      if (!page.truncated) state.metaIndexed = true;
+      if (!page.truncated) {
+        state.metaIndexed = true;
+        await fillThreadIds(db, account);
+      }
       await save({ ...state });
     }
 

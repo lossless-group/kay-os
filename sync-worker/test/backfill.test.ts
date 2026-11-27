@@ -158,3 +158,20 @@ test("a first read of meta/ too large for one run spans runs, and the walk waits
   assert.equal(second.indexed, 30);
   assert.equal((await all(db, "SELECT * FROM messages WHERE uid IS NOT NULL")).length, 10);
 });
+
+test("rows indexed before their meta arrived get its conversation id once the meta read finishes", async () => {
+  const db = sqliteDb();
+  const { bucket, fetchedShas } = await archive();
+  const sha = fetchedShas[0];
+  // As the issue found it: the message is indexed with no meta (so no thread id) before meta/ is read.
+  await indexMessage(db, {
+    account, sha256: sha, raw: message(1), mailbox: null, uidvalidity: null, uid: null,
+    internalDate: null, flags: null, labels: null, threadId: null,
+  });
+  assert.equal((await all(db, "SELECT thread_id FROM messages WHERE sha256 = ?", sha))[0].thread_id, null);
+  await backfillIndex(account, bucket, db, {}, { budget: 1000 });
+  const [row] = await all(db, "SELECT thread_id FROM messages WHERE sha256 = ?", sha);
+  assert.ok(row.thread_id, "the meta file's gmailThreadId is copied onto the earlier row");
+  const missing = await all(db, "SELECT count(*) AS n FROM messages m JOIN r2_meta r ON r.sha256 = m.sha256 WHERE m.thread_id IS NULL");
+  assert.equal(missing[0].n, 0);
+});
