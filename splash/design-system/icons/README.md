@@ -19,3 +19,11 @@ Palette (from `../../DESIGN.md`): tile `#030504` with a `#1c2321` edge, mint
 
 These files are not served by the site; the ones in use live in
 `../../public/brand/` and `../../public/favicon.svg`.
+
+## Comparing options
+
+`compare.html` is the page the choice was made on: every option at 128, 48,
+32 and 16 px, on dark and on light, so the favicon sizes get judged too. Open
+it straight in a browser (it needs no server). For a new round, add an `<svg>`
+to its `<template>` with a `data-name` and a `data-note`, and it lays itself
+out as another card.

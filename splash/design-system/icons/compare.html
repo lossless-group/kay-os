@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Icon Options</title>
+<style>
+  :root { --bg:#0c0f0e; --fg:#ece7d8; --muted:#8a918d; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 ui-sans-serif, system-ui, sans-serif; padding:32px 16px; }
+  h1 { font-size:20px; margin:0 0 4px; } p { color:var(--muted); margin:0 0 28px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:20px; max-width:1200px; }
+  .card { border:1px solid #1c2321; border-radius:12px; padding:18px; }
+  .card h2 { font-size:15px; margin:0 0 2px; } .card small { color:var(--muted); display:block; margin-bottom:14px; min-height:40px; }
+  .sizes { display:flex; align-items:flex-end; gap:14px; }
+  .light { background:#f4f1e8; border-radius:8px; padding:8px; display:flex; gap:10px; align-items:flex-end; margin-top:12px; }
+  svg { display:block; }
+</style>
+</head>
+<body>
+<h1>kay-os icon options (B chosen, 2026-11-27)</h1>
+<p>Same palette as today. Each at 128, 48, 32 and 16 px, on dark and on light.</p>
+<div class="grid" id="grid"></div>
+<template id="icons">
+  <!-- 0. Today's, for comparison -->
+  <svg data-name="Today (the down arrow)" data-note="Lit lamps: top corners, centre, bottom left and middle." viewBox="0 0 64 64">
+    <rect x="2" y="2" width="60" height="60" rx="6" fill="#030504" stroke="#1c2321" stroke-width="3"/>
+    <circle cx="14" cy="14" r="6" fill="#6fe3b4"/><circle cx="32" cy="14" r="6" fill="#2a302e"/><circle cx="50" cy="14" r="6" fill="#6fe3b4"/>
+    <circle cx="14" cy="32" r="6" fill="#ffb000"/><circle cx="32" cy="32" r="6" fill="#6fe3b4"/><circle cx="50" cy="32" r="6" fill="#2a302e"/>
+    <circle cx="14" cy="50" r="6" fill="#6fe3b4"/><circle cx="32" cy="50" r="6" fill="#6fe3b4"/><circle cx="50" cy="50" r="6" fill="#ff4f3a"/>
+  </svg>
+  <!-- A. A K drawn in lamps -->
+  <svg data-name="A · K in lamps" data-note="The same 3×3 board, lit as a K: the spine mint, the joint amber, one leg red." viewBox="0 0 64 64">
+    <rect x="2" y="2" width="60" height="60" rx="6" fill="#030504" stroke="#1c2321" stroke-width="3"/>
+    <circle cx="14" cy="14" r="6" fill="#6fe3b4"/><circle cx="32" cy="14" r="6" fill="#2a302e"/><circle cx="50" cy="14" r="6" fill="#6fe3b4"/>
+    <circle cx="14" cy="32" r="6" fill="#6fe3b4"/><circle cx="32" cy="32" r="6" fill="#ffb000"/><circle cx="50" cy="32" r="6" fill="#2a302e"/>
+    <circle cx="14" cy="50" r="6" fill="#6fe3b4"/><circle cx="32" cy="50" r="6" fill="#2a302e"/><circle cx="50" cy="50" r="6" fill="#ff4f3a"/>
+  </svg>
+  <!-- B. Split-flap tile -->
+  <svg data-name="B · Split-flap K" data-note="An arrivals-board flap with a K, the hinge line across it, and one mint status lamp." viewBox="0 0 64 64">
+    <rect x="2" y="2" width="60" height="60" rx="6" fill="#030504" stroke="#1c2321" stroke-width="3"/>
+    <rect x="12" y="10" width="40" height="44" rx="4" fill="#141917"/>
+    <path d="M23 18v28M23 33l13-15M28 28l10 18" stroke="#ece7d8" stroke-width="5" stroke-linecap="square" fill="none"/>
+    <rect x="12" y="31" width="40" height="2" fill="#030504"/>
+    <circle cx="50" cy="12" r="5" fill="#6fe3b4" stroke="#030504" stroke-width="2"/>
+  </svg>
+  <!-- C. Status row -->
+  <svg data-name="C · Status lamps" data-note="One board row: a long mint lamp (live), amber (next), red (needs you). The page's LIVE / NEXT / PLANNED lamps." viewBox="0 0 64 64">
+    <rect x="2" y="2" width="60" height="60" rx="6" fill="#030504" stroke="#1c2321" stroke-width="3"/>
+    <rect x="11" y="15" width="42" height="8" rx="4" fill="#6fe3b4"/>
+    <rect x="11" y="28" width="28" height="8" rx="4" fill="#ffb000"/>
+    <rect x="11" y="41" width="16" height="8" rx="4" fill="#ff4f3a"/>
+    <rect x="44" y="28" width="9" height="8" rx="4" fill="#2a302e"/><rect x="32" y="41" width="21" height="8" rx="4" fill="#2a302e"/>
+  </svg>
+  <!-- D. Colony -->
+  <svg data-name="D · Colony" data-note="Seven lamps in a hive: the colony around you, one amber (working), one red (needs you)." viewBox="0 0 64 64">
+    <rect x="2" y="2" width="60" height="60" rx="6" fill="#030504" stroke="#1c2321" stroke-width="3"/>
+    <circle cx="32" cy="32" r="7" fill="#6fe3b4"/>
+    <circle cx="32" cy="15" r="6" fill="#6fe3b4"/><circle cx="46.7" cy="23.5" r="6" fill="#2a302e"/><circle cx="46.7" cy="40.5" r="6" fill="#ffb000"/>
+    <circle cx="32" cy="49" r="6" fill="#6fe3b4"/><circle cx="17.3" cy="40.5" r="6" fill="#ff4f3a"/><circle cx="17.3" cy="23.5" r="6" fill="#6fe3b4"/>
+  </svg>
+  <!-- E. Clock of lamps -->
+  <svg data-name="E · Lamp clock" data-note="Twelve lamps as a clock face, the hours lit mint, the next one amber, a hand pointing at it. Archivist plus Timekeeper." viewBox="0 0 64 64">
+    <rect x="2" y="2" width="60" height="60" rx="6" fill="#030504" stroke="#1c2321" stroke-width="3"/>
+    <g id="dots"></g>
+    <path d="M32 32V17M32 32l9 5" stroke="#ece7d8" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="32" cy="32" r="3.5" fill="#ece7d8"/>
+  </svg>
+</template>
+<script>
+  const tpl = document.getElementById("icons").content;
+  const clock = tpl.querySelector('[data-name^="E"] #dots');
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2, x = 32 + 21 * Math.cos(a), y = 32 + 21 * Math.sin(a);
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", x.toFixed(2)); c.setAttribute("cy", y.toFixed(2)); c.setAttribute("r", "3.6");
+    c.setAttribute("fill", i < 4 ? "#6fe3b4" : i === 4 ? "#ffb000" : "#2a302e");
+    clock.appendChild(c);
+  }
+  const grid = document.getElementById("grid");
+  for (const svg of tpl.querySelectorAll("svg")) {
+    const card = document.createElement("div"); card.className = "card";
+    card.innerHTML = `<h2>${svg.dataset.name}</h2><small>${svg.dataset.note}</small>`;
+    for (const bg of ["dark", "light"]) {
+      const row = document.createElement("div"); row.className = bg === "dark" ? "sizes" : "light";
+      for (const size of bg === "dark" ? [128, 48, 32, 16] : [48, 32, 16]) {
+        const s = svg.cloneNode(true); s.setAttribute("width", size); s.setAttribute("height", size); row.appendChild(s);
+      }
+      card.appendChild(row);
+    }
+    grid.appendChild(card);
+  }
+</script>
+</body>
+</html>
