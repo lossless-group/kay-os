@@ -10,7 +10,7 @@ authors:
 augmented_with:
   - Claude Code on Claude Opus 5.5
 at_semantic_version: 0.0.0.1
-status: Open
+status: Resolved
 site_uuid: 526f026b-662f-4c2d-8d64-ad124acc0d7e
 hex_code: rytw4u
 summary: >-
@@ -89,3 +89,22 @@ data exists; it just landed after the messages were indexed.
 
 - The D1 table above shows `thread_id` on nearly every row for every account.
 - `read_message` on a work-account reply lists the rest of its conversation.
+
+## Resolved (2026-11-27)
+
+The laptop index turned out to hold every message's conversation id (100% on
+all four accounts), so step 3's worry didn't apply and step 4's fallback isn't
+needed yet.
+
+- **`mail/push_meta_to_d1.py`** writes the laptop's per-message metadata
+  (mailbox, UID, flags, labels, thread id) into D1's `r2_meta` and fills
+  `thread_id` on rows already indexed. Run for humain.vc, mandatory.ventures,
+  and Gmail: 230,938 `r2_meta` rows.
+- **`fillThreadIds`** in `sync-worker/src/backfill.ts` does the same fill when
+  an account's meta read finishes, so the ordering can't strand ids again.
+  Test: `backfill.test.ts`, "rows indexed before their meta arrived…".
+- After: humain.vc 714 of 714, mandatory.ventures 714 of 714, Gmail 44,092 of
+  44,100 indexed rows have a `thread_id`. Gmail's remaining backfill picks the
+  ids up from `r2_meta` as it indexes.
+- Threading by `References` / `In-Reply-To` stays a fallback for any future
+  non-Google account.
