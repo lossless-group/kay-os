@@ -52,6 +52,24 @@ Needs Firefox and ImageMagick (run through `nix run` on NixOS). After
 changing the bytes, bump `?v=` on `DEFAULT_OG.url` in `src/lib/seo.ts` so
 chat apps fetch the image again.
 
+## kay-os.lol
+
+The site is served at **https://kay-os.lol** (and `www`) by the Worker
+`kay-os-site`: static assets from `dist/`, no code (`wrangler.jsonc`). Both
+names are custom domains on the `kay-os.lol` zone in Cloudflare, which makes
+the DNS records and certificates.
+
+```bash
+./deploy.sh            # build for https://kay-os.lol and deploy
+./deploy.sh --dry-run  # build and check the bundle; deploy nothing
+```
+
+`deploy.sh` builds with `SITE_URL=https://kay-os.lol` (so `base` is `/`,
+and canonical links, the sitemap, and share images point at kay-os.lol) and
+`OPENPANEL_CLIENT_ID` from Doppler `kay-os/prd`, then deploys through
+`../sync-worker/cf.sh`. The GitHub Pages copy at
+`lossless-group.github.io/kay-os/` still builds on push to `main`.
+
 ## Analytics
 
 OpenPanel, through `src/components/Analytics.astro` (the exact component
