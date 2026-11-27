@@ -15,6 +15,14 @@
     "superhuman": {
       "type": "http",
       "url": "https://mcp.mail.superhuman.com/mcp"
+    },
+    "macos-mcp": {
+      "type": "stdio",
+      "command": "bash",
+      "args": [
+        "scripts/mcp-macos.sh"
+      ],
+      "env": {}
     }
   }
 }
