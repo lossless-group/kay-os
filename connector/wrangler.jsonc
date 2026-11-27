@@ -27,7 +27,7 @@
     // Michael's didi account id. Empty refuses everyone and logs the id that tried: set it after
     // the first sign-in. FILE_LINK_KEY is a Worker secret, not a var (Doppler:
     // KAYOS_CONNECTOR_FILE_LINK_KEY, sent at deploy).
-    "ALLOWED_DIDI_ID": ""
+    "ALLOWED_DIDI_ID": "019f39f3-9ab7-77ef-a51f-dd773d2da44d"
   },
   "observability": { "enabled": true }
 }
