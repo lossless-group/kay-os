@@ -17,5 +17,7 @@
   }],
   "durable_objects": { "bindings": [{ "name": "SYNC", "class_name": "MailboxSync" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MailboxSync"] }],
+  // Headroom for parsing large messages in a backfill chunk (Workers Paid allows up to 5 minutes).
+  "limits": { "cpu_ms": 300000 },
   "observability": { "enabled": true }
 }

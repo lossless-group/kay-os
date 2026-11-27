@@ -164,7 +164,9 @@ export async function backfillIndex(
     result.lastError = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     console.log(`backfill ${account}: stopped (${result.lastError})`);
   }
-  if (result.indexed) {
+  // The repeated-logo rule scans every attachment link, so run it once the walk is done rather
+  // than after every chunk; live sync runs it after each pass with new mail anyway.
+  if (result.indexed && state.done) {
     await refreshNoise(db).catch((err) => console.log(`refresh noise ${account}: failed (${err?.name ?? "error"})`));
   }
   return result;

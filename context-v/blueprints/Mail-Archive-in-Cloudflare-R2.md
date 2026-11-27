@@ -88,7 +88,13 @@ Raw files never change once written, so pushes only add.
   passwords). It is write-only once set. Since 2026-11-26 it comes from
   Doppler (project `kay-os`, config `prd`), where `ACCOUNTS` references each
   password by name (`${KAYOS_MAIL_HUMAIN_APP_PASSWORD}`), so each password is
-  stored once. It lists **mpstaton@gmail.com and michael@humain.vc**.
+  stored once. It lists **mpstaton@gmail.com, michael@humain.vc and
+  michael@mandatory.ventures**.
+- Index: each message is written to the D1 database `kay-os-mail-index`
+  (binding `INDEX`) as it's stored. Mail already in R2 is backfilled by
+  Durable Object alarms, 100 messages a chunk, until each account is done;
+  progress is in `status.json` under `backfill`. See
+  [[Backfill-Runs-Ended-Before-Writing-Status]].
 
 Tests use a fake Gmail and need no network: `cd sync-worker && pnpm test && pnpm typecheck`.
 `pnpm smoke` runs the IMAP client against a real server and prints counts only.
@@ -180,7 +186,8 @@ Omarchy laptop and stops at Gmail's daily OVERQUOTA. Rerunning it resumes.
 |---|---|---|---|
 | mpstaton@gmail.com | 228,292 (to 2026-11-05) | plus ≈1,570 from the Worker since 2026-11-07 | on; cursor UID 816,702 |
 | michael@learnstart.vc | 210,843, backfill done | not checked | not yet |
-| michael@humain.vc | 714, backfill done | 714 (pushed 2026-11-26) | on from 2026-11-26; seed UID 1127 |
+| michael@humain.vc | 713, backfill done | 714 (pushed 2026-11-26) | on from 2026-11-26; seed UID 1127; D1 backfill done |
+| michael@mandatory.ventures | 714, backfill done | 714 (pushed 2026-11-27) | on from 2026-11-27; seed UID 973; D1 backfill done |
 
 ## Next
 

@@ -11,6 +11,8 @@ interface DurableObjectState {
   storage: {
     get<T>(key: string): Promise<T | undefined>;
     put<T>(key: string, value: T): Promise<void>;
+    getAlarm(): Promise<number | null>;
+    setAlarm(scheduledTime: number | Date): Promise<void>;
   };
 }
 

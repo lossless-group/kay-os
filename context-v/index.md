@@ -9,3 +9,4 @@ okf_version: "0.2"
 * [Explorations](explorations/) - Open questions and early thinking
 * [Blueprints](blueprints/) - How things are built and run
 * [Mirrors](mirrors/) - How things are set up right now
+* [Issues](issues/) - Problems hit, and how they were found and fixed
