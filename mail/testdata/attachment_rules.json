@@ -177,7 +177,7 @@
     "content_id": null,
     "expected": {
       "content_type": "application/pdf",
-      "kind": "image",
+      "kind": "document",
       "is_noise": false
     }
   },
@@ -219,7 +219,7 @@
     "content_id": null,
     "expected": {
       "content_type": "application/pdf",
-      "kind": "archive",
+      "kind": "document",
       "is_noise": false
     }
   },
@@ -416,6 +416,34 @@
     "expected": {
       "content_type": "image/heic",
       "kind": "image",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "pdf named .jpg",
+    "first_bytes_hex": "255044462d312e370a",
+    "declared_type": "image/jpeg",
+    "filename": "scan.jpg",
+    "size": 90000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/pdf",
+      "kind": "document",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "gzip named .pdf.gz",
+    "first_bytes_hex": "1f8b0800",
+    "declared_type": "application/gzip",
+    "filename": "report.pdf.gz",
+    "size": 40000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/gzip",
+      "kind": "archive",
       "is_noise": false
     }
   }

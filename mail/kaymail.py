@@ -369,9 +369,17 @@ def sniff_type(data, declared, filename):
 
 
 def attachment_kind(content_type, filename):
+    """The file's type decides; the filename extension only breaks ties for generic types.
+
+    A PDF named scan.jpg is a document, and report.pdf.gz is an archive because its
+    bytes are gzip, not because of its name.
+    """
+    for kind, prefixes, _ in KINDS:
+        if content_type.startswith(prefixes):
+            return kind
     suffix = Path(filename or "").suffix.lower()
-    for kind, prefixes, suffixes in KINDS:
-        if content_type.startswith(prefixes) or suffix in suffixes:
+    for kind, _, suffixes in KINDS:
+        if suffix in suffixes:
             return kind
     return "other"
 

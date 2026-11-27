@@ -104,9 +104,13 @@ export function sniffType(data: Uint8Array, declared: string | null, filename: s
 
 /** kaymail.attachment_kind */
 export function attachmentKind(contentType: string, filename: string | null): string {
+  // The file's type decides; the extension only breaks ties for generic types (kaymail.attachment_kind).
+  for (const [kind, prefixes] of KINDS) {
+    if (prefixes.some((p) => contentType.startsWith(p))) return kind;
+  }
   const ext = suffix(filename ?? "");
-  for (const [kind, prefixes, suffixes] of KINDS) {
-    if (prefixes.some((p) => contentType.startsWith(p)) || suffixes.includes(ext)) return kind;
+  for (const [kind, , suffixes] of KINDS) {
+    if (suffixes.includes(ext)) return kind;
   }
   return "other";
 }
