@@ -2,14 +2,14 @@
 title: "Attachments as First-Class Mail — Find Any Document Ever Sent to Me, by Name, by Words, or by Meaning"
 lede: "Twenty years of decks, term sheets, contracts and invoices are already on disk and almost none of it is findable. This spec turns every attachment into something an agent can list, open, read, and search, without adding a single server."
 date_created: 2026-11-24
-date_modified: 2026-11-24
+date_modified: 2026-11-26
 date_authored_initial_draft: 2026-11-24
-date_authored_current_draft: 2026-11-24
+date_authored_current_draft: 2026-11-26
 authors:
   - Michael Staton
 augmented_with:
   - Claude Code on Claude Opus 5.5
-at_semantic_version: 0.0.0.1
+at_semantic_version: 0.0.1.2
 status: Draft
 site_uuid: 417c81b7-006e-4da5-a33e-8191ffc4da39
 hex_code: 1htbxa
@@ -134,6 +134,7 @@ These settle arguments during the build:
 ├── raw/<account>/<sha[:2]>/<sha>.eml        # unchanged; source of truth
 ├── index.sqlite                              # + the new tables below
 ├── attachments/<sha[:2]>/<sha>.md            # extracted text (Phase 2), pushed to R2
+├── attachments/<sha[:2]>/<sha>.read.pdf      # slimmed reading copy of a big PDF (Phase 2), pushed to R2
 └── cache/files/<sha[:2]>/<sha>.<ext>         # decoded originals, on demand, local only
 ```
 
@@ -174,6 +175,22 @@ CREATE INDEX IF NOT EXISTS attachments_kind ON attachments (kind, is_noise);
 
 The existing `messages.attachments` filename string stays, so current search
 and tests keep working.
+
+**Kinds.** `kind` is set from the sniffed type, then the declared type, then
+the filename extension:
+
+| Kind | What | Example types |
+|---|---|---|
+| `document` | Something to read | PDF, Word, PowerPoint, Excel, plain text, HTML, Markdown, CSV |
+| `calendar` | A meeting invite, update, cancellation, or reply | `text/calendar`, `application/ics`, `.ics` |
+| `image` | A picture that isn't noise | PNG, JPEG, GIF, HEIC |
+| `archive` | A container | zip, gzip, 7z |
+| `other` | Anything else | `application/octet-stream` that can't be identified |
+
+Calendar invites get their own kind because they're structured data, not
+prose. In the humain.vc inventory (2026-11-26, 713 messages) they were 59 of
+the 149 unique non-noise attachments, about 40%, next to 60 PDFs. Sending
+them through Docling would waste time and lose the structure.
 
 **Noise rule.** An attachment is noise when it is an image and any of these is
 true: it is inline with a `Content-ID`, it is under 10 KB, or the same hash
@@ -225,7 +242,8 @@ dependency list. kaymail and kaymcp import nothing from it.
 
 - Picks attachments where `extract_status='pending'`, `is_noise=0`, and `kind`
   is `document` (PDF, Word, PowerPoint, Excel, plain text, HTML, Markdown,
-  CSV). Images and archives become `skipped` with a reason.
+  CSV). Images and archives become `skipped` with a reason. Calendar
+  attachments go to the calendar parser below instead.
 - Converts each with **Docling** in a subprocess with a time limit (default
   120 s) and a memory limit. Timeouts, crashes, encrypted files, and empty
   output are recorded as `failed` or `skipped` with `extract_error`, and are
@@ -259,6 +277,107 @@ extracted_at: 2026-12-01T09:14:00+00:00
 
 The frontmatter is written by kay-os, not by the document. Document text is
 only ever in the body.
+
+**Reading copies of oversized PDFs.** People send 20 MB decks that would read
+the same at 3 MB. After Docling has run on the original, `extract.py` makes a
+slimmed copy with Ghostscript, the same approach as memopop's
+`src/asset_normalize.py` in `investment-memo-orchestrator`:
+
+```bash
+gs -dSAFER -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook \
+   -dNOPAUSE -dQUIET -dBATCH -sOutputFile=<sha>.read.pdf <original>
+```
+
+`/ebook` lowers embedded images to 150 dpi and leaves text and vector drawing
+alone. There's **no size floor**: the goal is less disk and faster transfers
+for every file, and a try costs 0.2–5 seconds. Every unsigned PDF gets a try,
+and the copy is **judged on what it costs the reader**, not on how big the
+original was. It's kept only when it passes all four checks:
+
+1. **Not signed.** No signature field (`/Sig`, `/ByteRange`) and no
+   certification (`/DocMDP`). Rewriting a signed contract breaks its
+   signature, so signed PDFs are never tried.
+2. **Worth it.** At least 25% smaller and at least 100 KB saved
+   (`READ_COPY_MIN_SAVING`, `READ_COPY_MIN_BYTES_SAVED`). Shaving 5 KB off a
+   60 KB memo isn't worth a second file.
+3. **Same words.** The text Ghostscript extracts (`-sDEVICE=txtwrite`) from
+   the copy is within 0.5% of the original's (`READ_COPY_MAX_TEXT_DRIFT`).
+   This catches the rare file where re-encoding drops characters.
+4. **Still legible.** Each page of both files is rendered in grayscale at
+   110 dpi, about what a laptop screen shows, and compared with ImageMagick
+   (`compare -metric DSSIM`, where 0 means identical). The worst page must
+   score at most **0.035** (`READ_COPY_MAX_DSSIM`). Decks over 30 pages are
+   checked on 30 pages spread across the deck.
+
+**How 0.035 was chosen.** On humain.vc (2026-11-26), the worst copy of all 60
+PDFs scored 0.0317: an 11-page deck whose screenshots of an app's UI went
+from 1.8 MB to 0.56 MB. The small UI text in those screenshots got visibly
+blockier when zoomed in. Michael opened both side by side and judged the
+slimmed one "perfectly great." So the bar sits just above it. If a copy ever
+comes back that a person finds too degraded, lower the bar to just under that
+copy's score and note it here.
+
+**What the rules did to humain.vc.** Of 60 PDFs (74.8 MB), 11 pass and save
+about 16.7 MB (22%). The rest were signed (the big contract-style files, which
+would only have shrunk 15–35% anyway), not worth it (mostly text-only memos
+under 200 KB that shrink a few KB), or failed the text check (one file lost
+2.4% of its characters). Ghostscript made three files *bigger*; those fail
+check 2. A gentler setting (200 dpi, `/printer`) was tried on the
+lowest-scoring copies and didn't score better, so there's no second try.
+
+The copy is a convenience, never a replacement. **Docling always reads the
+original first**, since the original is the evidence and `pdfwrite` can drop
+metadata, form fields, links, and the odd character. The one exception: a
+scan that Docling can't finish within its time limit is retried on the
+slimmed copy, because memopop measured identical OCR output on a 162 MB scan
+reduced to 16 MB.
+
+The original stays inside its `.eml` and in R2. `get_attachment` and the
+connector hand out the reading copy when there is one, with a flag saying so,
+and the original on request. New columns on `attachments`: `read_copy_size`,
+`read_copy_status` (`made | signed | not_worth_it | text_drift | illegible | failed`), and `read_copy_dssim`, so the bar can be re-tuned without re-rendering.
+
+Ghostscript printed colour-conversion warnings (`DeviceIndependentColor` with
+blending) on several files. The legibility check covers shapes and text, not
+colour, so **before this ships, spot-check a few of those in colour**, and if
+colours shift, add `-sColorConversionStrategy=LeaveColorUnchanged`.
+
+**This doesn't shrink the archive.** Every original is still inside its
+`.eml`, so a reading copy adds bytes. Disk on the laptop is saved another way:
+keep originals in R2, and keep only the index, Markdown, and reading copies
+locally (`r2.sh pull` without `--raw` already works like this).
+
+**Calendar invites.** `extract.py` parses each `calendar` attachment with the
+`icalendar` library (no models, no network) into one row per event:
+
+```sql
+CREATE TABLE IF NOT EXISTS calendar_events (
+    attachment_id INTEGER NOT NULL REFERENCES attachments(id),
+    uid TEXT NOT NULL,                 -- the event's UID, stable across updates
+    sequence INTEGER NOT NULL DEFAULT 0,
+    method TEXT,                       -- REQUEST | CANCEL | REPLY | PUBLISH
+    summary TEXT, location TEXT, conference_url TEXT,
+    starts_at TEXT, ends_at TEXT, tz TEXT,   -- ISO 8601, with the original zone kept
+    rrule TEXT,                        -- recurrence rule, unexpanded
+    organizer TEXT,
+    attendees TEXT,                    -- JSON: [{email, name, role, partstat}]
+    PRIMARY KEY (attachment_id, uid)
+);
+CREATE INDEX IF NOT EXISTS calendar_events_uid ON calendar_events (uid, sequence);
+```
+
+The same meeting arrives many times (the invite, each update, each reply), so
+the current state of a meeting is the row with the highest `sequence` for its
+`uid`, and a `CANCEL` at that sequence means it was called off. Recurrence
+rules are stored, not expanded. A `REPLY` records who accepted or declined.
+Summaries and locations come from the sender, so they're treated as untrusted
+text like any other attachment.
+
+The MCP gains `list_meetings` (by date range, person, or text), and
+`get_attachment` returns the parsed event for a calendar attachment. These rows
+also feed Phase 4: an invite is evidence of who meets with whom, which is a
+stronger signal than a CC line. And they're the raw material for the
+scheduling work in [[Replying-and-Scheduling-on-My-Behalf]].
 
 **Keyword search.** A new FTS5 table indexes the extracted text with the
 filename:
@@ -392,6 +511,8 @@ headers.
 - [ ] **OCR policy** for scanned documents: only when no text layer (proposed),
       or always.
 - [ ] **Archives.** Unpack `.zip` attachments in a later version, or never?
+- [ ] **Reading copies beyond PDFs.** Large images (resize to 2,400 px wide,
+      as memopop does) and PowerPoint files (convert to PDF first)?
 - [ ] **Body embeddings.** Whether, after Phase 3, to embed email bodies or
       per-thread summaries too.
 
