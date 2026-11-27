@@ -6,6 +6,7 @@
 #   mail/r2.sh check    confirm the keys work and show what's in the bucket
 #   mail/r2.sh push     upload new raw mail and a fresh copy of the search index
 #   mail/r2.sh push you@example.com   upload only that account's raw mail
+#   mail/r2.sh push-calendar          upload calendar exports (Takeout .ics), by account
 #   mail/r2.sh pull     download the search index (enough to search and read mail)
 #   mail/r2.sh pull --raw   also download every original .eml
 #
@@ -26,6 +27,7 @@ vault="${KAYOS_OP_VAULT:-Lossless Accounts}"
 item="${KAYOS_OP_ITEM:-kzjkc4imuewgr7gdorgohh4w7u}"   # "Cloudlfare kay-os-mail"
 bucket_name="${KAYOS_R2_BUCKET:-kay-os-mail}"
 data="${KAYMAIL_DATA:-$HOME/.local/share/kay-os/mail}"
+calendar="${KAYOS_CALENDAR_DATA:-$HOME/.local/share/kay-os/calendar}"
 config="${KAYMAIL_CONFIG:-$HOME/.config/kay-os/mail/accounts.toml}"
 
 die() { echo "r2.sh: $*" >&2; exit 1; }
@@ -88,6 +90,16 @@ case "$cmd" in
       "$data/index.sqlite" "$snap/index.sqlite"
     r2 copyto "$snap/index.sqlite" "kayr2:$b/index/index.sqlite" "${progress[@]}"
     echo "Pushed $(date -Is)"
+    ;;
+
+  push-calendar)
+    # Exports are filed as <account>/takeout/<export-date>/ and never change once
+    # downloaded, so, like raw mail, they're only ever added: --immutable refuses to
+    # overwrite. A newer export is a new dated folder.
+    [ -d "$calendar" ] || die "no calendar exports at $calendar"
+    r2 copy "$calendar" "kayr2:$b/calendar" --immutable --size-only \
+      --exclude "*.tmp" --transfers 16 "${progress[@]}"
+    echo "Pushed calendar exports $(date -Is)"
     ;;
 
   pull)

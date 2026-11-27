@@ -72,13 +72,15 @@ schema and the rules are in `context-v/specs/Calendars-as-Context.md`.
 
 ```bash
 uv run calendar/import_takeout.py michael@learnstart.vc \
-    ~/.local/share/kay-os/calendar/takeout/learnstart-20261127/Takeout/Calendar
+    ~/.local/share/kay-os/calendar/michael@learnstart.vc/takeout/2026-11-27/Calendar
 uv run calendar/import_takeout.py ... --expand-until 2028-12-31   # open-ended series further out
 ```
 
-- Unzip the export outside any git checkout (it lives beside the mail, in
-  `~/.local/share/kay-os/calendar/takeout/`). Each `.ics` file is one calendar,
-  named after the file.
+- Keep each export outside any git checkout, filed by account and export date:
+  `~/.local/share/kay-os/calendar/<account>/takeout/<YYYY-MM-DD>/`, holding the
+  `.zip` and its unzipped `Calendar/` folder. Each `.ics` file is one calendar,
+  named after the file. `mail/r2.sh push-calendar` copies that whole tree to
+  R2 under `calendar/`, add-only, like raw mail.
 - Rerunning replaces that account's Takeout rows one calendar at a time, in a
   transaction, so a newer export supersedes the old one. Calendars missing from
   the folder, other accounts, and other sources are left alone.

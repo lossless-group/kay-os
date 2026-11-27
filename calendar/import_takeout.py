@@ -20,7 +20,7 @@ not in the folder are left alone. The source files are only read.
 Prints counts only: never titles, descriptions, locations, or addresses.
 
   uv run calendar/import_takeout.py michael@learnstart.vc \\
-      ~/.local/share/kay-os/calendar/takeout/learnstart-20261127/Takeout/Calendar
+      ~/.local/share/kay-os/calendar/michael@learnstart.vc/takeout/2026-11-27/Calendar
 
 Spec: context-v/specs/Calendars-as-Context.md
 """

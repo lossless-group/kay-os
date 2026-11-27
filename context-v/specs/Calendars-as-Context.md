@@ -9,8 +9,8 @@ authors:
   - Michael Staton
 augmented_with:
   - Claude Code on Claude Opus 5.5
-at_semantic_version: 0.0.0.1
-status: Draft
+at_semantic_version: 0.0.1.0
+status: Implementing
 site_uuid: 3741b9b8-84ae-4a62-8ca2-5a42e53d27c7
 hex_code: j7tr7d
 summary: >-
@@ -55,7 +55,7 @@ in each meeting as rows an agent can join on.
 
 | Source | Covers | How it arrives | Status |
 |---|---|---|---|
-| **Google Takeout** | Everything an account ever had, every calendar, up to the export date | A `.zip` of `.ics` files, imported once | learnstart exported 2026-11-27: 13 calendars, ~9,200 events (2013–2026), 6,387 attendee addresses. Stored at `~/.local/share/kay-os/calendar/takeout/learnstart-20261127/` |
+| **Google Takeout** | Everything an account ever had, every calendar, up to the export date | A `.zip` of `.ics` files, imported once | learnstart exported 2026-11-27: 13 calendars, ~9,200 events (2013–2026), 6,387 attendee addresses. Stored at `~/.local/share/kay-os/calendar/michael@learnstart.vc/takeout/2026-11-27/` and in R2 under `calendar/` |
 | **Google direct** | Live, every calendar on the account, read and write | `calendar/gcal_grant.py` refresh tokens in Doppler; the Worker syncs with Google sync tokens | learnstart granted 2026-11-27; others on request |
 | **Vimcal** | Live, eight accounts (mandatory, humain, gmail, lossless, avalanche, hypernova, colearn, the-water-foundation) | Vimcal MCP: `list_events` in 31-day windows, read; `create_event` etc. to write | Connected in Claude and kay-os sessions |
 | **Mail invites** | Meetings someone emailed an invite for, any account in the archive | `calendar` attachments already indexed (Phase 1 of [[Attachments-as-First-Class-Mail]]) | 71 in humain, 89 in mandatory.ventures, untold in Gmail and learnstart |
@@ -180,13 +180,34 @@ spec's.
 - **Storage**: calendar data lives where mail does: `~/.local/share/kay-os/`
   on the laptop and D1 in the cloud, never in a git checkout.
 
+## What the learnstart import showed (2026-11-27)
+
+9,242 events across 13 calendars became 41,723 dated occurrences with 41,482
+attendee rows. Three things to know when querying:
+
+- **About 500 yearly all-day series start between 1933 and 1989** with no
+  attendees: birthdays and anniversaries. They make up the 17,268 occurrences
+  dated before 2013 and add about 500 all-day dates to every year. Counts of
+  meetings should filter on `all_day = 0`; "people met" is unaffected.
+- **Times are stored as UTC with `+00:00`**, the same as `messages.date`, so
+  calendar and mail times compare as strings. Compare against
+  `strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now')`, not `datetime('now')`.
+- **195 events have no occurrences, correctly**: series whose every date was
+  excluded or replaced, and series Google cut short ("delete this and
+  following" leaves an UNTIL before the start).
+
+People met per year (not cancelled or declined, excluding Michael's own
+addresses and resource calendars): 670 in 2013, 918 in 2015, 892 in 2020,
+379 in 2022, 101 so far in 2026.
+
 ## Queries this should answer
 
 ```sql
 -- When did I last meet someone?
 SELECT max(o.starts_at) FROM calendar_occurrences o
 JOIN calendar_attendees a ON a.event_id = o.event_id
-WHERE a.email = 'ana@example.com' AND o.starts_at <= datetime('now');
+WHERE a.email = 'ana@example.com'
+  AND o.starts_at <= strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now');  -- same format as stored times
 
 -- Who did I meet most in 2015?
 SELECT a.email, count(DISTINCT o.starts_at) AS meetings FROM calendar_occurrences o

@@ -64,6 +64,7 @@ Related: [[Email-Repository-and-Agent-Harness]], [[A-Gateway-Between-Agents-and-
 | `meta/<account>/<encodeURIComponent(mailbox)>/<uidvalidity>/<uid>.json` | per-message metadata: uid, sha256, Gmail thread id, labels | Worker |
 | `state/<account>/seed.json` | `{mailbox: {uidvalidity, lastUid}}` where the laptop left off | uploaded once by hand |
 | `state/<account>/status.json` | the Worker's cursors, `lastRun`, `fetched`, `lastError` | Worker, every run |
+| `calendar/<account>/takeout/<YYYY-MM-DD>/…` | a Google Takeout calendar export: the `.zip` and its unzipped `Calendar/*.ics`, one file per calendar | `r2.sh push-calendar` (add-only) |
 
 Raw files never change once written, so pushes only add.
 
