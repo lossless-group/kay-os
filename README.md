@@ -71,8 +71,8 @@ same `index.sqlite` as the mail, in three tables: `calendar_events`,
 schema and the rules are in `context-v/specs/Calendars-as-Context.md`.
 
 ```bash
-uv run calendar/import_takeout.py michael@learnstart.vc \
-    ~/.local/share/kay-os/calendar/michael@learnstart.vc/takeout/2026-11-27/Calendar
+uv run calendar/import_takeout.py you@example.com \
+    ~/.local/share/kay-os/calendar/you@example.com/takeout/2026-11-27/Calendar
 uv run calendar/import_takeout.py ... --expand-until 2028-12-31   # open-ended series further out
 ```
 
@@ -104,8 +104,8 @@ Cloudflare; the files hold real calendar data, so they go in a private temp
 folder outside any checkout (deleted after a real push).
 
 ```bash
-python3 calendar/push_to_d1.py --account michael@learnstart.vc --source takeout --dry-run
-python3 calendar/push_to_d1.py --account michael@learnstart.vc --source takeout
+python3 calendar/push_to_d1.py --account you@example.com --source takeout --dry-run
+python3 calendar/push_to_d1.py --account you@example.com --source takeout
 ```
 
 ### Calendars (Google, direct)
@@ -118,7 +118,7 @@ Doppler as `LOSSLESS_GOOGLE_OAUTH_KAYOS_CLIENT_JSON`, with a backup at
 `~/.config/kay-os/google/kay-os-desktop-client.json`.
 
 ```bash
-doppler run --project kay-os --config prd -- python3 calendar/gcal_grant.py michael@learnstart.vc
+doppler run --project kay-os --config prd -- python3 calendar/gcal_grant.py you@example.com
 ```
 
 It opens Google's consent page, checks that the account that signed in is the
@@ -134,7 +134,7 @@ of calendars and recent events as a check.
 - If the project's publishing status is **Testing**, Google expires these
   refresh tokens after 7 days. It needs to be **In production**.
 
-Granted so far: michael@learnstart.vc (2026-11-27). Vimcal covers eight other
+Granted so far: one Workspace account (2026-11-27). Vimcal covers eight other
 accounts for reading and booking; see
 `context-v/reminders/Vimcal-Booking-Links-Only-See-Their-Own-Account.md`.
 
