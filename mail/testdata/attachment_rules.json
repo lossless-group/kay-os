@@ -1,0 +1,422 @@
+[
+  {
+    "name": "pdf signature",
+    "first_bytes_hex": "255044462d312e370a",
+    "declared_type": "application/pdf",
+    "filename": "Acme Deck.pdf",
+    "size": 120000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/pdf",
+      "kind": "document",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "png signature",
+    "first_bytes_hex": "89504e470d0a1a0a0000",
+    "declared_type": "image/png",
+    "filename": "chart.png",
+    "size": 200000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "image/png",
+      "kind": "image",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "attached 1 MB photo",
+    "first_bytes_hex": "ffd8ffe0",
+    "declared_type": "image/jpeg",
+    "filename": "IMG_2041.jpg",
+    "size": 1000000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "image/jpeg",
+      "kind": "image",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "gif tracking pixel",
+    "first_bytes_hex": "474946383961",
+    "declared_type": "application/octet-stream",
+    "filename": null,
+    "size": 43,
+    "disposition": null,
+    "content_id": null,
+    "expected": {
+      "content_type": "image/gif",
+      "kind": "image",
+      "is_noise": true
+    }
+  },
+  {
+    "name": "calendar signature under a wrong type",
+    "first_bytes_hex": "424547494e3a5643414c454e4441520d0a",
+    "declared_type": "text/plain",
+    "filename": null,
+    "size": 900,
+    "disposition": null,
+    "content_id": null,
+    "expected": {
+      "content_type": "text/calendar",
+      "kind": "calendar",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "docx declared over a zip signature",
+    "first_bytes_hex": "504b03041400",
+    "declared_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "filename": "memo.docx",
+    "size": 40000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "kind": "document",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "xlsx declared over a zip signature",
+    "first_bytes_hex": "504b03041400",
+    "declared_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "filename": "model.xlsx",
+    "size": 80000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "kind": "document",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "plain zip",
+    "first_bytes_hex": "504b03041400",
+    "declared_type": "application/zip",
+    "filename": "files.zip",
+    "size": 500000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/zip",
+      "kind": "archive",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "zip as octet-stream with a pptx name",
+    "first_bytes_hex": "504b03041400",
+    "declared_type": "application/octet-stream",
+    "filename": "deck.pptx",
+    "size": 3000000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "kind": "document",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "zip as octet-stream with no name",
+    "first_bytes_hex": "504b03041400",
+    "declared_type": "application/octet-stream",
+    "filename": null,
+    "size": 5000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/zip",
+      "kind": "archive",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "gzip signature",
+    "first_bytes_hex": "1f8b0800",
+    "declared_type": "application/x-gzip",
+    "filename": "logs.tar.gz",
+    "size": 70000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/gzip",
+      "kind": "archive",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "7z signature",
+    "first_bytes_hex": "377abcaf271c00",
+    "declared_type": "application/octet-stream",
+    "filename": "backup.7z",
+    "size": 70000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/x-7z-compressed",
+      "kind": "archive",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "signature beats declared image type",
+    "first_bytes_hex": "255044462d312e370a",
+    "declared_type": "image/jpeg",
+    "filename": "scan.jpg",
+    "size": 300000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/pdf",
+      "kind": "image",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "octet-stream with a known extension",
+    "first_bytes_hex": "517561727465726c79206e6f7465730a",
+    "declared_type": "application/octet-stream",
+    "filename": "notes.txt",
+    "size": 2000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "text/plain",
+      "kind": "document",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "octet-stream with an upper-case extension",
+    "first_bytes_hex": "517561727465726c79206e6f7465730a",
+    "declared_type": "application/octet-stream",
+    "filename": "SCAN.PDF",
+    "size": 2000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/pdf",
+      "kind": "document",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "octet-stream with a compressed extension",
+    "first_bytes_hex": "517561727465726c79206e6f7465730a",
+    "declared_type": "application/octet-stream",
+    "filename": "report.pdf.gz",
+    "size": 2000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/pdf",
+      "kind": "archive",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "octet-stream tarball",
+    "first_bytes_hex": "517561727465726c79206e6f7465730a",
+    "declared_type": "application/octet-stream",
+    "filename": "site.tgz",
+    "size": 2000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/x-tar",
+      "kind": "archive",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "octet-stream with an unknown extension",
+    "first_bytes_hex": "517561727465726c79206e6f7465730a",
+    "declared_type": "application/octet-stream",
+    "filename": "blob.bin",
+    "size": 2000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/octet-stream",
+      "kind": "other",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "octet-stream with no name",
+    "first_bytes_hex": "517561727465726c79206e6f7465730a",
+    "declared_type": "application/octet-stream",
+    "filename": null,
+    "size": 2000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/octet-stream",
+      "kind": "other",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "keynote: unknown type, document by extension",
+    "first_bytes_hex": "517561727465726c79206e6f7465730a",
+    "declared_type": "application/octet-stream",
+    "filename": "Pitch.key",
+    "size": 900000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/octet-stream",
+      "kind": "document",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "no declared type at all",
+    "first_bytes_hex": "517561727465726c79206e6f7465730a",
+    "declared_type": null,
+    "filename": null,
+    "size": 2000,
+    "disposition": null,
+    "content_id": null,
+    "expected": {
+      "content_type": "application/octet-stream",
+      "kind": "other",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "calendar by type",
+    "first_bytes_hex": "4d4554484f443a524551554553540d0a",
+    "declared_type": "text/calendar",
+    "filename": null,
+    "size": 1200,
+    "disposition": null,
+    "content_id": null,
+    "expected": {
+      "content_type": "text/calendar",
+      "kind": "calendar",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "calendar by .ics",
+    "first_bytes_hex": "4d4554484f443a43414e43454c0d0a",
+    "declared_type": "application/octet-stream",
+    "filename": "invite.ics",
+    "size": 1200,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "text/calendar",
+      "kind": "calendar",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "calendar declared application/ics",
+    "first_bytes_hex": "4d4554484f443a5245504c590d0a",
+    "declared_type": "application/ics",
+    "filename": "reply.ics",
+    "size": 1200,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "application/ics",
+      "kind": "calendar",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "small attached image",
+    "first_bytes_hex": "89504e470d0a1a0a0000",
+    "declared_type": "image/png",
+    "filename": "logo.png",
+    "size": 400,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "image/png",
+      "kind": "image",
+      "is_noise": true
+    }
+  },
+  {
+    "name": "inline 30 KB image by content-id",
+    "first_bytes_hex": "89504e470d0a1a0a0000",
+    "declared_type": "image/png",
+    "filename": "logo.png",
+    "size": 30000,
+    "disposition": null,
+    "content_id": "<logo@acme.example>",
+    "expected": {
+      "content_type": "image/png",
+      "kind": "image",
+      "is_noise": true
+    }
+  },
+  {
+    "name": "inline 30 KB image by disposition",
+    "first_bytes_hex": "ffd8ffe0",
+    "declared_type": "image/jpeg",
+    "filename": "banner.jpg",
+    "size": 30000,
+    "disposition": "inline",
+    "content_id": null,
+    "expected": {
+      "content_type": "image/jpeg",
+      "kind": "image",
+      "is_noise": true
+    }
+  },
+  {
+    "name": "attached 30 KB image",
+    "first_bytes_hex": "89504e470d0a1a0a0000",
+    "declared_type": "image/png",
+    "filename": "diagram.png",
+    "size": 30000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "image/png",
+      "kind": "image",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "inline 300 KB screenshot",
+    "first_bytes_hex": "89504e470d0a1a0a0000",
+    "declared_type": "image/png",
+    "filename": "image001.png",
+    "size": 300000,
+    "disposition": "inline",
+    "content_id": "<image001@mail>",
+    "expected": {
+      "content_type": "image/png",
+      "kind": "image",
+      "is_noise": false
+    }
+  },
+  {
+    "name": "heic photo with no signature",
+    "first_bytes_hex": "000000186674797068656963",
+    "declared_type": "image/heic",
+    "filename": "IMG_1.HEIC",
+    "size": 2000000,
+    "disposition": "attachment",
+    "content_id": null,
+    "expected": {
+      "content_type": "image/heic",
+      "kind": "image",
+      "is_noise": false
+    }
+  }
+]

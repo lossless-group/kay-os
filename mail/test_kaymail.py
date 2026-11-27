@@ -286,6 +286,21 @@ class KaymailTest(unittest.TestCase):
             kaymail.private_dir(checkout / "mail")
 
 
+class SharedAttachmentRulesTest(unittest.TestCase):
+    """The Worker's src/rules.ts passes the same file: the two can't sort attachments differently."""
+
+    def test_rule_cases(self):
+        cases = json.loads((Path(__file__).parent / "testdata" / "attachment_rules.json").read_text())
+        self.assertGreater(len(cases), 20)
+        for case in cases:
+            with self.subTest(case["name"]):
+                data = bytes.fromhex(case["first_bytes_hex"])
+                ctype = kaymail.sniff_type(data, case["declared_type"], case["filename"])
+                kind = kaymail.attachment_kind(ctype, case["filename"])
+                noise = kaymail.is_noise(kind, case["size"], case["disposition"], case["content_id"])
+                self.assertEqual({"content_type": ctype, "kind": kind, "is_noise": noise}, case["expected"])
+
+
 class CloudSchemaParityTest(unittest.TestCase):
     """The Worker's D1 index (sync-worker/migrations) must keep the laptop's table shapes."""
 

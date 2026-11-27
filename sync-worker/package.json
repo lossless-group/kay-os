@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0"
+  },
+  "dependencies": {
+    "postal-mime": "2.7.6"
   }
 }

@@ -376,6 +376,12 @@ def attachment_kind(content_type, filename):
     return "other"
 
 
+def is_noise(kind, size, disposition, content_id):
+    """Small images, and small images shown inline in the body. Repeats are refresh_noise's job."""
+    inline = disposition == "inline" or bool(content_id)
+    return kind == "image" and (size < NOISE_MAX_BYTES or (inline and size < NOISE_INLINE_MAX_BYTES))
+
+
 def attachment_parts(msg):
     """(part_index, filename, declared_type, disposition, content_id, bytes) for every attachment.
 
@@ -411,8 +417,7 @@ def record_attachments(db, message_id, raw, date):
             sha = hashlib.sha256(data).hexdigest()
             ctype = sniff_type(data, declared, filename)
             kind = attachment_kind(ctype, filename)
-            inline = disposition == "inline" or bool(content_id)
-            noise = kind == "image" and (len(data) < NOISE_MAX_BYTES or (inline and len(data) < NOISE_INLINE_MAX_BYTES))
+            noise = is_noise(kind, len(data), disposition, content_id)
             db.execute(
                 """INSERT INTO attachments (sha256, content_type, size, kind, is_noise, first_seen) VALUES (?,?,?,?,?,?)
                    ON CONFLICT (sha256) DO UPDATE SET
