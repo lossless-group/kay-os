@@ -4,8 +4,9 @@ import { test } from "node:test";
 import type { Db } from "../src/db.ts";
 import { htmlToText, indexMessage, refreshNoise, sha256Hex, toUtc, type IndexInput } from "../src/indexer.ts";
 import { attachmentKind, isNoise, sniffType } from "../src/rules.ts";
-import { syncAccount, type Bucket } from "../src/sync.ts";
+import { syncAccount } from "../src/sync.ts";
 import { fakeGmail } from "./fake-gmail.ts";
+import { memoryBucket } from "./memory-bucket.ts";
 import { sqliteDb } from "./sqlite-db.ts";
 
 const encoder = new TextEncoder();
@@ -23,22 +24,6 @@ async function input(raw: Uint8Array, uid: number | null, overrides: Partial<Ind
 
 const all = async (db: Db, sql: string, ...values: unknown[]) => (await db.prepare(sql).bind(...values).all()).results;
 
-function memoryBucket() {
-  const objects = new Map<string, Uint8Array | string>();
-  const bucket: Bucket = {
-    async get(key) {
-      const v = objects.get(key);
-      return v === undefined ? null : { text: async () => (typeof v === "string" ? v : new TextDecoder().decode(v)) };
-    },
-    async head(key) {
-      return objects.has(key) ? {} : null;
-    },
-    async put(key, value) {
-      objects.set(key, value);
-    },
-  };
-  return { bucket, objects };
-}
 
 test("the deck message: four parts, the document and invite listed, the logo noise", async () => {
   const db = sqliteDb();

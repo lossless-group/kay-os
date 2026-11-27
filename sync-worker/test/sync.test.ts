@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { syncAccount, type Bucket } from "../src/sync.ts";
+import { syncAccount } from "../src/sync.ts";
 import { fakeGmail } from "./fake-gmail.ts";
+import { memoryBucket } from "./memory-bucket.ts";
 
 const encoder = new TextEncoder();
 const account = { address: "me@example.com", password: "app-password" };
@@ -10,22 +11,6 @@ function mail(n: number) {
   return new Map(Array.from({ length: n }, (_, i) => [i + 1, encoder.encode(`Subject: ${i + 1}\r\n\r\nbody ${i + 1}`)]));
 }
 
-function memoryBucket(seed: Record<string, string> = {}) {
-  const objects = new Map<string, Uint8Array | string>(Object.entries(seed));
-  const bucket: Bucket = {
-    async get(key) {
-      const v = objects.get(key);
-      return v === undefined ? null : { text: async () => (typeof v === "string" ? v : new TextDecoder().decode(v)) };
-    },
-    async head(key) {
-      return objects.has(key) ? {} : null;
-    },
-    async put(key, value) {
-      objects.set(key, value);
-    },
-  };
-  return { bucket, objects };
-}
 
 const rawKeys = (objects: Map<string, unknown>) => [...objects.keys()].filter((k) => k.startsWith("raw/"));
 

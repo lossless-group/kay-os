@@ -22,11 +22,19 @@ export interface SyncState {
   lastError?: string;
 }
 
-/** The slice of an R2 bucket binding this file uses. */
+/** A page of R2's list(): `cursor` is set when `truncated`, and passed back for the next page. */
+export interface BucketListing {
+  objects: { key: string }[];
+  truncated: boolean;
+  cursor?: string;
+}
+
+/** The slice of an R2 bucket binding the sync and the backfill use. */
 export interface Bucket {
-  get(key: string): Promise<{ text(): Promise<string> } | null>;
+  get(key: string): Promise<{ text(): Promise<string>; arrayBuffer(): Promise<ArrayBuffer> } | null>;
   head(key: string): Promise<unknown>;
   put(key: string, value: Uint8Array | string): Promise<unknown>;
+  list(options: { prefix: string; cursor?: string; limit?: number }): Promise<BucketListing>;
 }
 
 const BATCH = 50;
