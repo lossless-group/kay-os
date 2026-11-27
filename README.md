@@ -62,6 +62,38 @@ what's inside (text extraction, search by meaning) is in
 
 Tests: `python3 -m unittest mail/test_kaymail.py mail/test_kaymcp.py`
 
+### Calendars (Google Takeout history)
+
+`calendar/import_takeout.py` loads a Google Takeout calendar export into the
+same `index.sqlite` as the mail, in three tables: `calendar_events`,
+`calendar_attendees` (the organizer included, flagged), and
+`calendar_occurrences` (every dated instance, recurring series expanded). The
+schema and the rules are in `context-v/specs/Calendars-as-Context.md`.
+
+```bash
+uv run calendar/import_takeout.py michael@learnstart.vc \
+    ~/.local/share/kay-os/calendar/takeout/learnstart-20261127/Takeout/Calendar
+uv run calendar/import_takeout.py ... --expand-until 2028-12-31   # open-ended series further out
+```
+
+- Unzip the export outside any git checkout (it lives beside the mail, in
+  `~/.local/share/kay-os/calendar/takeout/`). Each `.ics` file is one calendar,
+  named after the file.
+- Rerunning replaces that account's Takeout rows one calendar at a time, in a
+  transaction, so a newer export supersedes the old one. Calendars missing from
+  the folder, other accounts, and other sources are left alone.
+- Series are expanded with `recurring-ical-events`: EXDATEs dropped, changed
+  instances on their own row in place of the date they replace, open-ended
+  series up to a year from today (or `--expand-until`), at most 5,000 dates a
+  series.
+- It prints counts only, one line per calendar and a total: events, series,
+  changed instances, occurrences, attendees, cancelled, flagged (dated before
+  1990 or after 2100: kept, usually birthdays), and anything skipped or
+  patched and why. Never titles, descriptions, locations, or addresses.
+
+Tests: `uv run --with icalendar==7.3.2 --with recurring-ical-events==3.8.2 python -m unittest discover -s calendar -p 'test_*.py'`
+(`discover`, because a `calendar.` module path would collide with Python's own `calendar`).
+
 ### Calendars (Google, direct)
 
 `calendar/gcal_grant.py` gives kay-os its own access to a Google account's
