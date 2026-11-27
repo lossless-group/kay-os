@@ -1,30 +1,27 @@
 ---
 /**
- * The kay-os mark + logotype. The mark is a 3×3 panel of status lamps, a few
- * lit: a colony of small agents, each reporting in. The logotype sets
- * "KAY-OS" in the condensed display caps of the arrivals board. Colors come
- * from tokens, so it pivots with the mode.
+ * The kay-os mark + logotype. The mark is a split-flap tile from the arrivals
+ * board: a K on the flap, the hinge seam across it, and one lit status lamp
+ * (public/brand/appIcon__Kay-OS.svg is the same art; the options it was chosen
+ * from are in design-system/icons/). The logotype sets "KAY-OS" in the
+ * condensed display caps of the board. Board, flap, and lamp colors come from
+ * tokens, so they pivot with the mode; the K stays cream because the board is
+ * a dark slab in every mode.
  */
 interface Props {
   size?: number;
   markOnly?: boolean;
 }
 const { size = 28, markOnly = false } = Astro.props;
-// Which lamps are lit, and with what: ok, wait, you, or off.
-const lamps = ['ok', 'off', 'ok', 'wait', 'ok', 'off', 'ok', 'ok', 'you'];
 ---
 
 <span class="logo" style={`--logo-size:${size}px`}>
   <svg class="logo__mark" viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
-    <rect x="2" y="2" width="60" height="60" rx="4" fill="var(--board-bg)" stroke="var(--board-frame)" stroke-width="3" />
-    {lamps.map((l, i) => (
-      <circle
-        cx={14 + (i % 3) * 18}
-        cy={14 + Math.floor(i / 3) * 18}
-        r="6"
-        fill={l === 'off' ? 'var(--lamp-off)' : `var(--lamp-${l})`}
-      />
-    ))}
+    <rect x="2" y="2" width="60" height="60" rx="6" fill="var(--board-bg)" stroke="var(--board-frame)" stroke-width="3" />
+    <rect x="12" y="10" width="40" height="44" rx="4" fill="var(--flap-bg)" />
+    <path d="M23 18v28M23 33l13-15M28 28l10 18" stroke="#ece7d8" stroke-width="5" stroke-linecap="square" fill="none" />
+    <rect x="12" y="31" width="40" height="2" fill="var(--flap-seam)" />
+    <circle cx="50" cy="12" r="5" fill="var(--lamp-ok)" stroke="var(--board-bg)" stroke-width="2" />
   </svg>
   {!markOnly && (
     <span class="logo__type">KAY<span class="logo__dash">-</span>OS</span>
