@@ -5,7 +5,8 @@
   // No public URL: the worker only runs on its schedule.
   "workers_dev": false,
   "preview_urls": false,
-  "triggers": { "crons": ["*/5 * * * *"] },
+  // 7am, 11am, 3pm and 7pm US Central (UTC-6), a few times a day.
+  "triggers": { "crons": ["0 1,13,17,21 * * *"] },
   "r2_buckets": [{ "binding": "MAIL", "bucket_name": "kay-os-mail" }],
   "durable_objects": { "bindings": [{ "name": "SYNC", "class_name": "MailboxSync" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MailboxSync"] }],

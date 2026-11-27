@@ -1,15 +1,15 @@
 ---
 title: "Mail Archive in Cloudflare R2 — How Every Inbox Gets Into the Bucket and Stays Current"
-lede: "The laptop pulled the whole history; a Cloudflare Worker keeps it current every five minutes. This is how to pick it up from any computer."
+lede: "The laptop pulled the whole history; a Cloudflare Worker keeps it current a few times a day. This is how to pick it up from any computer."
 date_created: 2026-11-07
-date_modified: 2026-11-07
+date_modified: 2026-11-26
 date_authored_initial_draft: 2026-11-07
 date_authored_current_draft: 2026-11-07
 authors:
   - Michael Staton
 augmented_with:
   - Claude Code on Claude Opus 5.5
-at_semantic_version: 0.0.1.0
+at_semantic_version: 0.0.2.0
 status: In-Progress
 site_uuid: 20ffd63f-6afb-40fe-aac5-f92a322aed19
 hex_code: l0u9rl
@@ -38,10 +38,10 @@ Related: [[Email-Repository-and-Agent-Harness]], [[A-Gateway-Between-Agents-and-
 ```
  Gmail (IMAP, read-only)
    │                     │
-   │ history             │ new mail, every 5 min
+   │ history             │ new mail, 4× a day
    ▼                     ▼
  laptop: mail/kaymail.py     Worker kay-os-mail-sync
-   ~/.local/share/kay-os/mail      cron */5 → one Durable Object per account
+   ~/.local/share/kay-os/mail      cron 7/11/15/19 Central → one Durable Object per account
    │                             │
    │ mail/r2.sh push             │ writes directly
    ▼                             ▼
@@ -81,9 +81,14 @@ Raw files never change once written, so pushes only add.
   `cloudflare:sockets`.
 - `wrangler.jsonc`: `workers_dev: false` and `preview_urls: false`, so there is
   no public URL. Bindings: R2 `MAIL` → `kay-os-mail`, Durable Object `SYNC`.
+- Schedule: `0 1,13,17,21 * * *` UTC, which is 7am, 11am, 3pm, and 7pm US
+  Central (8am–8pm during daylight time). Each run fetches up to 200 new
+  messages per account. Until 2026-11-26 it ran every 5 minutes.
 - Secret `ACCOUNTS`: a JSON list of `{address, password, host?}` (Gmail app
-  passwords). It is write-only once set. Currently it lists **only
-  mpstaton@gmail.com**.
+  passwords). It is write-only once set. Since 2026-11-26 it comes from
+  Doppler (project `kay-os`, config `prd`), where `ACCOUNTS` references each
+  password by name (`${KAYOS_MAIL_HUMAIN_APP_PASSWORD}`), so each password is
+  stored once. It lists **mpstaton@gmail.com and michael@humain.vc**.
 
 Tests use a fake Gmail and need no network: `cd sync-worker && pnpm test && pnpm typecheck`.
 `pnpm smoke` runs the IMAP client against a real server and prints counts only.
@@ -130,18 +135,19 @@ the Remote URL and initial token. Nothing uses it yet.
 ## Everyday commands
 
 ```bash
-# Is the Worker running? lastRun should be under 5 minutes old.
+# Is the Worker running? lastRun should be from the latest scheduled run.
 sync-worker/cf.sh tail                                   # live logs: "<address>: fetched N"
 rclone cat kayr2:kay-os-mail/state/mpstaton@gmail.com/status.json   # with KAYR2 env from r2.sh
 
 # Deploy after changing sync-worker/
-cd sync-worker && pnpm test && pnpm typecheck && ./cf.sh deploy
+cd sync-worker && pnpm test && npx -y -p typescript@5.9.3 tsc --noEmit && ./cf.sh deploy
 
-# Change the account list (replaces the whole secret)
-./cf.sh secret put ACCOUNTS     # paste: [{"address":"...","password":"app password"}, ...]
+# Change the account list: edit ACCOUNTS in Doppler (kay-os/prd), then
+./cf.sh accounts                # sends the resolved list from Doppler; never printed
 
 # Laptop archive → R2 (only new files go up; the index is replaced)
 mail/r2.sh push
+mail/r2.sh push you@example.com # one account's raw mail only, no index
 ```
 
 To make a seed for an account (run on the machine holding its archive):
@@ -167,6 +173,14 @@ sync and that moment has to come from the laptop.
 
 The LearnStart backfill (`mail/backfill.sh michael@learnstart.vc`) runs on the
 Omarchy laptop and stops at Gmail's daily OVERQUOTA. Rerunning it resumes.
+
+## State as of 2026-11-26
+
+| Account | Laptop | R2 `raw/` | Cloud sync |
+|---|---|---|---|
+| mpstaton@gmail.com | 228,292 (to 2026-11-05) | plus ≈1,570 from the Worker since 2026-11-07 | on; cursor UID 816,702 |
+| michael@learnstart.vc | 210,843, backfill done | not checked | not yet |
+| michael@humain.vc | 714, backfill done | 714 (pushed 2026-11-26) | on from 2026-11-26; seed UID 1127 |
 
 ## Next
 

@@ -127,7 +127,7 @@ Each computer needs the 1Password app with CLI integration turned on
 `nix run` if it isn't installed. The iPhone holds no keys: it will reach the
 archive through a connector in the Claude app, signed in like any other.
 
-#### Doppler (being set up, 2026-11-26)
+#### Doppler (since 2026-11-26)
 
 [Doppler](https://doppler.com) is being added for the secrets kay-os runs on.
 Its main job is syncing them into the Cloudflare Worker, so `ACCOUNTS` stops
@@ -181,9 +181,10 @@ only one: the laptop and the Worker are both the real thing. So:
    watching, and never inside an agent session's `!` prompt, whose output is
    saved in the transcript.
 
-Not wired up yet: `kaymail.py add` still reads the password from a hidden
-prompt and saves a plain-text copy in `accounts.toml`. Having `doppler run`
-supply it instead takes a small change to kaymail. The Doppler → Cloudflare
-Workers sync for `ACCOUNTS` is also still to do. How to create a mail app
+The Worker's account list is wired up: `ACCOUNTS` in Doppler is a JSON list
+whose passwords are references (`${KAYOS_MAIL_HUMAIN_APP_PASSWORD}`), and
+`sync-worker/cf.sh accounts` sends the resolved list to the Worker without
+printing it. Not wired up yet: `kaymail.py add` still reads the password from
+a hidden prompt and saves a plain-text copy in `accounts.toml`. How to create a mail app
 password in the first place:
 `context-v/blueprints/Connecting-a-Google-Workspace-Mailbox.md`.

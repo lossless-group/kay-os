@@ -1,4 +1,4 @@
-// Every five minutes, each account's Durable Object fetches new mail into R2.
+// On each scheduled run (a few times a day), each account's Durable Object fetches new mail into R2.
 // One object per account means one IMAP session per account at a time.
 import { DurableObject } from "cloudflare:workers";
 import { connectImap } from "./socket.ts";

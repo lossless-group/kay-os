@@ -5,6 +5,7 @@
 # Usage:
 #   mail/r2.sh check    confirm the keys work and show what's in the bucket
 #   mail/r2.sh push     upload new raw mail and a fresh copy of the search index
+#   mail/r2.sh push you@example.com   upload only that account's raw mail
 #   mail/r2.sh pull     download the search index (enough to search and read mail)
 #   mail/r2.sh pull --raw   also download every original .eml
 #
@@ -71,6 +72,13 @@ case "$cmd" in
     [ -d "$data/raw" ] || die "no archive at $data"
     # Raw files are named by their hash and never change, so --immutable skips
     # anything already uploaded and refuses to overwrite.
+    if [ -n "${2:-}" ]; then
+      [ -d "$data/raw/$2" ] || die "no archive for $2 at $data/raw/$2"
+      r2 copy "$data/raw/$2" "kayr2:$b/raw/$2" --immutable --size-only \
+        --transfers 64 --checkers 64 "${progress[@]}"
+      echo "Pushed $2's raw mail $(date -Is)"
+      exit
+    fi
     r2 copy "$data/raw" "kayr2:$b/raw" --immutable --size-only \
       --transfers 64 --checkers 64 "${progress[@]}"
     # Snapshot the index first: a sync may be writing to it right now.
