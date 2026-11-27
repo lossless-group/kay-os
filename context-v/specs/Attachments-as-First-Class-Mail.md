@@ -9,8 +9,8 @@ authors:
   - Michael Staton
 augmented_with:
   - Claude Code on Claude Opus 5.5
-at_semantic_version: 0.0.1.2
-status: Draft
+at_semantic_version: 0.0.2.0
+status: Implementing
 site_uuid: 417c81b7-006e-4da5-a33e-8191ffc4da39
 hex_code: 1htbxa
 summary: >-
@@ -193,8 +193,12 @@ the 149 unique non-noise attachments, about 40%, next to 60 PDFs. Sending
 them through Docling would waste time and lose the structure.
 
 **Noise rule.** An attachment is noise when it is an image and any of these is
-true: it is inline with a `Content-ID`, it is under 10 KB, or the same hash
-appears on more than 50 messages. The thresholds are constants, tuned once
+true: it is under 10 KB, it is inline (or has a `Content-ID`) and under 50 KB,
+or the same hash appears on more than 50 messages. *Changed during Phase 1
+(2026-11-26):* the draft marked every inline image as noise, but screenshots
+pasted into a message body are inline too, and on humain.vc the repeated
+signature logos all came in under 33 KB, so inline images now need to be
+small as well. The thresholds are constants, tuned once
 against the real archive during Phase 1 (see acceptance criteria). Noise is
 inventoried, never extracted, and hidden from results unless asked for.
 

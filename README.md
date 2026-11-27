@@ -35,13 +35,39 @@ Non-Gmail accounts take `--host imap.example.com`. Search uses
   you a message, so agents reading it shouldn't also hold tools that can send or
   delete without a human approving.
 
+### Attachments
+
+Every attachment is already on disk inside its `.eml`. Sync now also indexes
+each one: its type, size, and hash, and every message it arrived on. A file
+sent ten times is one row. Logos and tracking pixels are marked as noise and
+left out of listings.
+
+```bash
+python3 mail/kaymail.py attachments --backfill                    # index mail synced before this existed; resumable
+python3 mail/kaymail.py attachments --from acme --type pdf --since 2025-01-01
+python3 mail/kaymail.py attachments --kind calendar               # meeting invites
+python3 mail/kaymail.py attachments --message 1234                # one message's files
+python3 mail/kaymail.py attachment 5678                           # type, size, every message it came on
+python3 mail/kaymail.py attachment 5678 --save ~/Downloads        # decode the original file
+python3 mail/kaymail.py attachment 5678 --path                    # decode into the local cache, print the path
+```
+
+Files are decoded from the original email on demand into
+`cache/files/` in the mail data directory, which is local only and safe to
+delete. Filenames are chosen by senders, so `--save` reduces them to a plain
+name inside the folder you give it. Agents get the same through the MCP
+server's `list_attachments` and `get_attachment` tools. The plan for reading
+what's inside (text extraction, search by meaning) is in
+`context-v/specs/Attachments-as-First-Class-Mail.md`.
+
 Tests: `python3 -m unittest mail/test_kaymail.py mail/test_kaymcp.py`
 
 ### Agents: search, read, draft
 
 `mail/kaymcp.py` puts the archive in front of agents on this machine as an MCP
-server with three tools: `search_mail`, `read_message` (with the rest of its
-thread), and `draft_reply`. It's registered in `.mcp.json`, so Claude Code
+server with five tools: `search_mail`, `read_message` (with the rest of its
+thread and its attachments), `list_attachments`, `get_attachment`, and
+`draft_reply`. It's registered in `.mcp.json`, so Claude Code
 sessions opened in this repo get it. Every call is logged to
 `logs/mcp-calls.jsonl` in the mail data directory.
 

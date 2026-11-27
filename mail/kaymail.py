@@ -19,6 +19,7 @@ import hashlib
 import html.parser
 import imaplib
 import json
+import mimetypes
 import os
 import re
 import sqlite3
@@ -71,7 +72,64 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5 (
     subject, from_addr, to_addr, body, attachments,
     content='messages', content_rowid='id'
 );
+CREATE TABLE IF NOT EXISTS attachments (
+    id INTEGER PRIMARY KEY,
+    sha256 TEXT NOT NULL UNIQUE,          -- of the decoded bytes
+    content_type TEXT,                    -- sniffed from bytes, falling back to declared
+    size INTEGER NOT NULL,
+    kind TEXT NOT NULL,                   -- document | calendar | image | archive | other
+    is_noise INTEGER NOT NULL DEFAULT 0,  -- logos, pixels, signature images
+    first_seen TEXT,                      -- earliest message date carrying it
+    extract_status TEXT NOT NULL DEFAULT 'pending',  -- pending | done | skipped | failed (Phase 2)
+    extractor TEXT, extractor_version TEXT, extracted_at TEXT,
+    pages INTEGER, chars INTEGER, extract_error TEXT
+);
+CREATE TABLE IF NOT EXISTS message_attachments (
+    message_id INTEGER NOT NULL REFERENCES messages(id),
+    part_index INTEGER NOT NULL,          -- position among the message's MIME parts
+    attachment_id INTEGER NOT NULL REFERENCES attachments(id),
+    filename TEXT,
+    declared_type TEXT,
+    disposition TEXT,                     -- attachment | inline
+    content_id TEXT,
+    PRIMARY KEY (message_id, part_index)
+);
+CREATE INDEX IF NOT EXISTS message_attachments_att ON message_attachments (attachment_id);
+CREATE INDEX IF NOT EXISTS attachments_kind ON attachments (kind, is_noise);
+CREATE TABLE IF NOT EXISTS attachment_scans (
+    message_id INTEGER PRIMARY KEY REFERENCES messages(id),
+    status TEXT NOT NULL                  -- ok | error: so a backfill never parses a message twice
+);
 """
+
+# Images this small, or inline in the body and under the larger limit, are logos,
+# icons, and tracking pixels. So is any image that arrives on more than
+# NOISE_REPEATS messages. Real screenshots pasted into a body are usually bigger.
+NOISE_MAX_BYTES = 10_000
+NOISE_INLINE_MAX_BYTES = 50_000
+NOISE_REPEATS = 50
+ATTACHMENT_HINT = re.compile(rb"filename|name=|text/calendar|content-id", re.IGNORECASE)
+MAGIC = [
+    (b"%PDF", "application/pdf"),
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF8", "image/gif"),
+    (b"BEGIN:VCALENDAR", "text/calendar"),
+    (b"PK\x03\x04", "application/zip"),
+    (b"\x1f\x8b", "application/gzip"),
+    (b"7z\xbc\xaf\x27\x1c", "application/x-7z-compressed"),
+]
+KINDS = [
+    ("calendar", ("text/calendar", "application/ics"), (".ics", ".vcs")),
+    ("image", ("image/",), (".png", ".jpg", ".jpeg", ".gif", ".heic", ".webp", ".tif", ".tiff", ".bmp")),
+    ("archive", ("application/zip", "application/gzip", "application/x-7z", "application/x-rar",
+                 "application/x-tar", "application/x-zip"), (".zip", ".gz", ".tgz", ".7z", ".rar", ".tar")),
+    ("document", ("application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument",
+                  "application/vnd.ms-", "application/vnd.oasis.opendocument", "application/rtf",
+                  "text/plain", "text/html", "text/markdown", "text/csv"),
+     (".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".odt", ".ods", ".odp", ".rtf",
+      ".txt", ".md", ".html", ".htm", ".csv", ".key", ".pages", ".numbers")),
+]
 
 
 class AuthFailed(Exception):
@@ -142,10 +200,15 @@ def select_accounts(name):
 
 def open_db():
     private_dir(data_dir())
-    db = sqlite3.connect(data_dir() / "index.sqlite", timeout=60)
+    path = data_dir() / "index.sqlite"
+    db = sqlite3.connect(path, timeout=60)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
     db.executescript(SCHEMA)
+    # The index holds every message's text, so it's owner-only like the raw mail.
+    for name in ("index.sqlite", "index.sqlite-wal", "index.sqlite-shm"):
+        if (data_dir() / name).exists():
+            os.chmod(data_dir() / name, 0o600)
     return db
 
 
@@ -294,6 +357,237 @@ def parse_message(raw):
     }
 
 
+def sniff_type(data, declared, filename):
+    """Trust unmistakable file signatures over what the sender declared."""
+    sniffed = next((ctype for magic, ctype in MAGIC if data.startswith(magic)), None)
+    if sniffed and sniffed != "application/zip":
+        return sniffed
+    if declared and declared != "application/octet-stream":
+        return declared  # docx, xlsx and pptx are zips too; their declared type says which
+    guessed = mimetypes.guess_type(filename or "")[0]
+    return guessed or sniffed or declared or "application/octet-stream"
+
+
+def attachment_kind(content_type, filename):
+    suffix = Path(filename or "").suffix.lower()
+    for kind, prefixes, suffixes in KINDS:
+        if content_type.startswith(prefixes) or suffix in suffixes:
+            return kind
+    return "other"
+
+
+def attachment_parts(msg):
+    """(part_index, filename, declared_type, disposition, content_id, bytes) for every attachment.
+
+    An attachment is a part marked as one, a part with a filename, a calendar
+    invite (often an unnamed text/calendar alternative), or a non-text part the
+    body points at by Content-ID. Body text and HTML parts are skipped.
+    """
+    for index, part in enumerate(msg.walk()):
+        if part.is_multipart():
+            continue
+        try:
+            ctype = part.get_content_type()
+            filename = part.get_filename()
+            disposition = part.get_content_disposition()
+            content_id = header(part, "content-id").strip() or None
+            if not (disposition == "attachment" or filename or ctype == "text/calendar"
+                    or (content_id and not ctype.startswith("text/"))):
+                continue
+            data = part.get_payload(decode=True) or b""
+        except Exception as err:
+            print(f"  skipped an unreadable attachment part ({err})", file=sys.stderr)
+            continue
+        if data:
+            yield index, filename, ctype, disposition, content_id, data
+
+
+def record_attachments(db, message_id, raw, date):
+    """Index one message's attachments. Safe to rerun; returns how many parts it found."""
+    found = 0
+    if ATTACHMENT_HINT.search(raw):
+        msg = email.message_from_bytes(raw, policy=email.policy.default)
+        for index, filename, declared, disposition, content_id, data in attachment_parts(msg):
+            sha = hashlib.sha256(data).hexdigest()
+            ctype = sniff_type(data, declared, filename)
+            kind = attachment_kind(ctype, filename)
+            inline = disposition == "inline" or bool(content_id)
+            noise = kind == "image" and (len(data) < NOISE_MAX_BYTES or (inline and len(data) < NOISE_INLINE_MAX_BYTES))
+            db.execute(
+                """INSERT INTO attachments (sha256, content_type, size, kind, is_noise, first_seen) VALUES (?,?,?,?,?,?)
+                   ON CONFLICT (sha256) DO UPDATE SET
+                       is_noise = max(is_noise, excluded.is_noise),
+                       first_seen = CASE WHEN first_seen IS NULL OR excluded.first_seen < first_seen
+                                         THEN excluded.first_seen ELSE first_seen END""",
+                (sha, ctype, len(data), kind, int(noise), date),
+            )
+            attachment_id = db.execute("SELECT id FROM attachments WHERE sha256=?", (sha,)).fetchone()[0]
+            db.execute(
+                """INSERT OR IGNORE INTO message_attachments
+                       (message_id, part_index, attachment_id, filename, declared_type, disposition, content_id)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (message_id, index, attachment_id, filename, declared, disposition, content_id),
+            )
+            found += 1
+    db.execute("INSERT OR REPLACE INTO attachment_scans (message_id, status) VALUES (?, 'ok')", (message_id,))
+    return found
+
+
+def refresh_noise(db):
+    """An image that arrives on dozens of messages is a logo, whatever its size."""
+    db.execute(
+        """UPDATE attachments SET is_noise=1 WHERE kind='image' AND is_noise=0 AND id IN (
+               SELECT attachment_id FROM message_attachments GROUP BY attachment_id
+               HAVING count(DISTINCT message_id) > ?)""",
+        (NOISE_REPEATS,),
+    )
+
+
+def scan_message(db, message_id, account, sha, date, raw=None):
+    """Index attachments for one stored message. A parse failure is recorded, never raised."""
+    try:
+        if raw is None:
+            raw = raw_path(account, sha).read_bytes()
+        return record_attachments(db, message_id, raw, date)
+    except Exception as err:
+        print(f"  could not index attachments of message {message_id} ({err})", file=sys.stderr)
+        db.execute("INSERT OR REPLACE INTO attachment_scans (message_id, status) VALUES (?, 'error')", (message_id,))
+        return 0
+
+
+def backfill_attachments(db, account=None):
+    """Index attachments for every primary message not scanned yet. Resumable and idempotent."""
+    sql = ("SELECT id, account, sha256, date FROM messages m WHERE is_primary=1 "
+           "AND NOT EXISTS (SELECT 1 FROM attachment_scans s WHERE s.message_id=m.id)")
+    params = []
+    if account:
+        sql += " AND account=?"
+        params.append(account)
+    todo = db.execute(sql + " ORDER BY date DESC", params).fetchall()
+    if todo:
+        print(f"Indexing attachments in {len(todo)} messages", file=sys.stderr)
+    found = 0
+    for n, row in enumerate(todo, 1):
+        found += scan_message(db, row["id"], row["account"], row["sha256"], row["date"])
+        if n % 500 == 0 or n == len(todo):
+            db.commit()
+            print(f"  {n}/{len(todo)}", file=sys.stderr)
+    refresh_noise(db)
+    db.commit()
+    return len(todo), found
+
+
+def attachment_report(db, account=None):
+    """Totals by kind: what's there, before deciding what to extract."""
+    where, params = "", []
+    if account:
+        where = ("WHERE a.id IN (SELECT ma.attachment_id FROM message_attachments ma "
+                 "JOIN messages m ON m.id=ma.message_id WHERE m.account=?)")
+        params.append(account)
+    kinds = db.execute(
+        f"""SELECT kind, is_noise, count(*) AS n, coalesce(sum(size),0) AS bytes
+            FROM attachments a {where} GROUP BY kind, is_noise ORDER BY is_noise, n DESC""", params).fetchall()
+    return [dict(r) for r in kinds]
+
+
+def find_attachments(db, account=None, sender=None, type_=None, kind=None, since=None, until=None,
+                     message_id=None, noise=False, limit=50):
+    """Attachments matching the filters, newest message first, one row per unique file."""
+    where, params = ["m.is_primary=1"], []
+    for clause, value in (("m.account=?", account), ("m.from_addr LIKE ?", sender and f"%{sender}%"),
+                          ("a.kind=?", kind), ("m.date >= ?", since), ("m.date < ?", until),
+                          ("m.id=?", message_id)):
+        if value is not None:
+            where.append(clause)
+            params.append(value)
+    if type_:
+        where.append("(a.content_type LIKE ? OR ma.filename LIKE ?)")
+        params += [f"%{type_}%", f"%.{type_.lstrip('.')}"]
+    if not noise:
+        where.append("a.is_noise=0")
+    return db.execute(
+        f"""SELECT a.id, a.content_type, a.size, a.kind, a.is_noise,
+                   coalesce(ma.filename, (SELECT n.filename FROM message_attachments n
+                                          WHERE n.attachment_id = a.id AND n.filename IS NOT NULL
+                                          LIMIT 1)) AS filename,
+                   m.id AS message_id, m.account, max(m.date) AS date, m.from_addr, m.subject,
+                   count(DISTINCT m.id) AS messages
+            FROM attachments a
+            JOIN message_attachments ma ON ma.attachment_id = a.id
+            JOIN messages m ON m.id = ma.message_id
+            WHERE {" AND ".join(where)}
+            GROUP BY a.id ORDER BY date DESC LIMIT ?""",
+        (*params, limit),
+    ).fetchall()
+
+
+def attachment_detail(db, attachment_id):
+    row = db.execute("SELECT * FROM attachments WHERE id=?", (attachment_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"No attachment {attachment_id}")
+    messages = db.execute(
+        """SELECT m.id, m.account, m.date, m.from_addr, m.subject, ma.filename, ma.disposition
+           FROM message_attachments ma JOIN messages m ON m.id = ma.message_id
+           WHERE ma.attachment_id=? AND m.is_primary=1 ORDER BY m.date""",
+        (attachment_id,),
+    ).fetchall()
+    return {**dict(row), "messages": [dict(m) for m in messages]}
+
+
+def attachment_bytes(db, attachment_id):
+    """Decode an attachment from the first original that still holds it, checking its hash."""
+    sha = db.execute("SELECT sha256 FROM attachments WHERE id=?", (attachment_id,)).fetchone()
+    if sha is None:
+        raise ValueError(f"No attachment {attachment_id}")
+    for row in db.execute(
+            """SELECT ma.part_index, m.account, m.sha256 FROM message_attachments ma
+               JOIN messages m ON m.id = ma.message_id WHERE ma.attachment_id=?""", (attachment_id,)):
+        path = raw_path(row["account"], row["sha256"])
+        if not path.exists():
+            continue
+        msg = email.message_from_bytes(path.read_bytes(), policy=email.policy.default)
+        for index, *_, data in attachment_parts(msg):
+            if index == row["part_index"] and hashlib.sha256(data).hexdigest() == sha[0]:
+                return data
+    raise ValueError(f"Attachment {attachment_id} isn't in any original on this machine (r2.sh pull --raw)")
+
+
+def attachment_suffix(content_type, filename):
+    suffix = Path(filename or "").suffix.lower()
+    if re.fullmatch(r"\.[a-z0-9]{1,8}", suffix):
+        return suffix
+    return mimetypes.guess_extension(content_type or "") or ".bin"
+
+
+def cache_attachment(db, attachment_id):
+    """Decode into cache/files/ (local only, safe to delete) and return the path."""
+    row = db.execute(
+        """SELECT a.sha256, a.content_type, ma.filename FROM attachments a
+           JOIN message_attachments ma ON ma.attachment_id = a.id WHERE a.id=? LIMIT 1""",
+        (attachment_id,),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"No attachment {attachment_id}")
+    sha = row["sha256"]
+    path = data_dir() / "cache/files" / sha[:2] / f"{sha}{attachment_suffix(row['content_type'], row['filename'])}"
+    if not path.exists():
+        data = attachment_bytes(db, attachment_id)
+        private_dir(path.parent)
+        temp = path.with_suffix(".tmp")
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        temp.replace(path)
+    return path
+
+
+def safe_filename(filename, fallback):
+    """A sender-chosen filename, reduced to one harmless path component."""
+    name = Path((filename or "").replace("\\", "/")).name
+    name = re.sub(r"[\x00-\x1f\x7f/]", "", name).lstrip(".").strip()[:150]
+    return name or fallback
+
+
 def to_utc(internaldate, date_header):
     try:
         parsed = datetime.datetime.strptime(internaldate.strip(), "%d-%b-%Y %H:%M:%S %z")
@@ -352,6 +646,7 @@ def record_message(db, acct, mailbox, uidvalidity, meta, raw):
         "INSERT INTO messages_fts (rowid, subject, from_addr, to_addr, body, attachments) VALUES (?,?,?,?,?,?)",
         (cursor.lastrowid, parsed["subject"], parsed["from_addr"], parsed["to_addr"], parsed["body"], parsed["attachments"]),
     )
+    scan_message(db, cursor.lastrowid, account, sha, date, raw)
     return {
         "id": cursor.lastrowid, "account": account, "mailbox": mailbox, "date": date,
         "from": parsed["from_addr"], "subject": parsed["subject"], "labels": labels,
@@ -459,6 +754,9 @@ def sync_once(db, acct, limit):
             imap.logout()
         except (imaplib.IMAP4.error, OSError):
             pass
+    if stored:
+        refresh_noise(db)
+        db.commit()
     append_events(events)
     return stored, events
 
@@ -606,6 +904,63 @@ def cmd_show(args):
     print(f"Raw: {path}\n\n{row['body']}")
 
 
+def human_size(n):
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+
+
+def cmd_attachments(args):
+    db = open_db()
+    if args.backfill:
+        scanned, found = backfill_attachments(db, args.account)
+        print(f"Scanned {scanned} messages, found {found} attachment parts.")
+        for row in attachment_report(db, args.account):
+            label = f"{row['kind']} (noise)" if row["is_noise"] else row["kind"]
+            print(f"  {row['n']:>7}  {human_size(row['bytes']):>9}  {label}")
+        return
+    rows = find_attachments(db, args.account, args.sender, args.type, args.kind, args.since, args.until,
+                            args.message, args.noise, args.limit)
+    for row in rows:
+        if args.json:
+            print(json.dumps(dict(row), ensure_ascii=False))
+        else:
+            seen = f" (on {row['messages']} messages)" if row["messages"] > 1 else ""
+            print(f"{row['id']:>7}  {(row['date'] or '')[:10]}  {human_size(row['size']):>9}  {row['kind']:<8}  "
+                  f"{(row['filename'] or '(no name)')[:60]}  msg {row['message_id']}{seen}")
+
+
+def cmd_attachment(args):
+    db = open_db()
+    try:
+        if args.save:
+            detail = attachment_detail(db, args.id)
+            name = safe_filename(detail["messages"][0]["filename"] if detail["messages"] else None,
+                                 f"{detail['sha256'][:12]}{attachment_suffix(detail['content_type'], None)}")
+            dest = Path(args.save).expanduser() / name
+            stem, n = dest.stem, 2
+            while dest.exists():
+                dest = dest.with_name(f"{stem} ({n}){dest.suffix}")
+                n += 1
+            dest.write_bytes(attachment_bytes(db, args.id))
+            print(dest)
+            return
+        if args.path:
+            print(cache_attachment(db, args.id))
+            return
+        detail = attachment_detail(db, args.id)
+    except ValueError as err:
+        sys.exit(str(err))
+    if args.json:
+        print(json.dumps(detail, ensure_ascii=False))
+        return
+    print(f"{detail['content_type']}, {human_size(detail['size'])}, {detail['kind']}"
+          f"{', noise' if detail['is_noise'] else ''}\nsha256 {detail['sha256']}\nArrived on:")
+    for m in detail["messages"]:
+        print(f"  msg {m['id']:>7}  {(m['date'] or '')[:10]}  {m['from_addr'][:40]}  {m['filename'] or '(no name)'}")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="kaymail", description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -645,6 +1000,27 @@ def build_parser():
     show.add_argument("--raw", action="store_true", help="print the path of the original .eml")
     show.add_argument("--json", action="store_true")
     show.set_defaults(func=cmd_show)
+
+    attachments = sub.add_parser("attachments", help="list attachments, or index them with --backfill")
+    attachments.add_argument("--backfill", action="store_true", help="index every message not indexed yet; resumable")
+    attachments.add_argument("--account")
+    attachments.add_argument("--from", dest="sender")
+    attachments.add_argument("--type", help="pdf, xlsx, image/png, ...")
+    attachments.add_argument("--kind", choices=["document", "calendar", "image", "archive", "other"])
+    attachments.add_argument("--since", help="YYYY-MM-DD")
+    attachments.add_argument("--until", help="YYYY-MM-DD")
+    attachments.add_argument("--message", type=int, help="one message's attachments")
+    attachments.add_argument("--noise", action="store_true", help="include logos and tracking pixels")
+    attachments.add_argument("--limit", type=int, default=50)
+    attachments.add_argument("--json", action="store_true")
+    attachments.set_defaults(func=cmd_attachments)
+
+    attachment = sub.add_parser("attachment", help="one attachment: where it arrived, or its file")
+    attachment.add_argument("id", type=int)
+    attachment.add_argument("--save", metavar="DIR", help="decode the original file into DIR")
+    attachment.add_argument("--path", action="store_true", help="decode into the local cache and print the path")
+    attachment.add_argument("--json", action="store_true")
+    attachment.set_defaults(func=cmd_attachment)
     return parser
 
 

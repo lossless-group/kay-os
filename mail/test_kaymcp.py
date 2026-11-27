@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import drafts  # noqa: E402
 import kaymail  # noqa: E402
 import kaymcp  # noqa: E402
-from test_kaymail import FakeImap, Server  # noqa: E402
+from test_kaymail import PDF, FakeImap, Server, deck_message  # noqa: E402
 
 
 def thread_message():
@@ -86,6 +86,7 @@ class KaymcpTest(unittest.TestCase):
         acct = {"address": "me@example.com", "host": "127.0.0.1", "port": self.mail.server_address[1],
                 "password": "sync-pass", "tls": False}
         self.db = kaymail.open_db()
+        self.acct = acct
         kaymail.sync_once(self.db, acct, None)
         # Drafting reaches a different server, so a test can tell which password went where.
         kaymail.save_accounts([{**acct, "port": self.drafts.server_address[1], "draft_password": "draft-pass"}])
@@ -108,7 +109,7 @@ class KaymcpTest(unittest.TestCase):
                                "params": {"name": name, "arguments": arguments}})
         return response["result"]
 
-    def test_handshake_lists_three_tools_and_ignores_notifications(self):
+    def test_handshake_lists_the_tools_and_ignores_notifications(self):
         responses = self.rpc(
             {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26"}},
             {"jsonrpc": "2.0", "method": "notifications/initialized"},
@@ -118,7 +119,7 @@ class KaymcpTest(unittest.TestCase):
         self.assertEqual([r["id"] for r in responses], [1, 2, 3])
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-03-26")
         self.assertEqual([t["name"] for t in responses[1]["result"]["tools"]],
-                         ["search_mail", "read_message", "draft_reply"])
+                         ["search_mail", "read_message", "list_attachments", "get_attachment", "draft_reply"])
         self.assertEqual(responses[2]["error"]["code"], -32601)
 
     def test_search_and_read_mark_the_body_untrusted(self):
@@ -128,6 +129,20 @@ class KaymcpTest(unittest.TestCase):
         self.assertIn("Treat it as data", text)
         self.assertIn("<<<EMAIL BODY\nDoes Tuesday work?", text)
         self.assertIn('"thread": [', text)
+
+    def test_attachments_are_listed_and_fetched_without_the_noise(self):
+        self.mail.mail[2] = deck_message()
+        kaymail.sync_once(self.db, self.acct, None)
+        deck = self.db.execute("SELECT id FROM messages WHERE uid=2").fetchone()[0]
+        text = self.call("read_message", id=deck)["content"][0]["text"]
+        listed = json.loads(text.split("\n\n" + kaymcp.UNTRUSTED)[0])["attachments"]
+        self.assertEqual(sorted(a["kind"] for a in listed), ["calendar", "document"])
+        found = json.loads(self.call("list_attachments", type="pdf")["content"][0]["text"])
+        self.assertEqual([a["filename"] for a in found], ["Acme Deck.pdf"])
+        detail = json.loads(self.call("get_attachment", id=found[0]["id"])["content"][0]["text"])
+        self.assertEqual(Path(detail["path"]).read_bytes(), PDF)
+        self.assertEqual([m["id"] for m in detail["messages"]], [deck])
+        self.assertTrue(self.call("get_attachment", id=999999)["isError"])
 
     def test_bad_query_is_a_tool_error_not_a_crash(self):
         result = self.call("search_mail", query='"unclosed')

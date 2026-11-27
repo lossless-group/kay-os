@@ -36,6 +36,26 @@ def html_with_attachment():
     return msg.as_bytes()
 
 
+PDF = b"%PDF-1.4\n" + b"deck page " * 500
+LOGO = b"\x89PNG\r\n\x1a\n" + b"\x00" * 400
+INVITE = ("BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:pitch-1\r\n"
+          "SUMMARY:Pitch\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+
+
+def deck_message(filename="Acme Deck.pdf", subject="Our deck"):
+    """A deck, a signature logo, and a meeting invite sent both inline and as invite.ics."""
+    msg = EmailMessage()
+    msg["From"] = "founder@acme.example"
+    msg["Subject"] = subject
+    msg.set_content("Deck attached, and an invite for Tuesday.")
+    msg.add_alternative(INVITE.encode(), maintype="text", subtype="calendar")
+    msg.add_attachment(PDF, maintype="application", subtype="pdf", filename=filename)
+    msg.add_attachment(LOGO, maintype="image", subtype="png", filename="logo.png",
+                       disposition="inline", cid="<logo@acme.example>")
+    msg.add_attachment(INVITE.encode(), maintype="application", subtype="ics", filename="invite.ics")
+    return msg.as_bytes()
+
+
 BROKEN_CHARSET = (
     b"From: carol@example.com\r\nSubject: Odd charset\r\n"
     b"Content-Type: text/plain; charset=not-a-charset\r\n\r\nwaffle body\r\n"
@@ -191,6 +211,58 @@ class KaymailTest(unittest.TestCase):
         self.assertEqual(result["subject"], "Term sheet")
         self.assertIn("[liquidation]", result["snippet"])
 
+    def message_id(self, uid):
+        return self.db.execute("SELECT id FROM messages WHERE uid=?", (uid,)).fetchone()[0]
+
+    def test_sync_indexes_each_attachment_once_and_sorts_out_noise(self):
+        self.server.mail[4] = deck_message()
+        self.server.mail[5] = deck_message("../../Acme Deck v2.pdf", "Deck again")
+        kaymail.sync_once(self.db, self.acct, None)
+        deck = self.message_id(4)
+        parts = self.db.execute("SELECT count(*) FROM message_attachments WHERE message_id=?", (deck,)).fetchone()[0]
+        self.assertEqual(parts, 4, "deck, logo, the inline invite and invite.ics")
+        listed = {r["kind"]: r for r in kaymail.find_attachments(self.db, message_id=deck)}
+        self.assertEqual(set(listed), {"document", "calendar"}, "the logo is noise, and both invites are one file")
+        self.assertEqual(listed["document"]["filename"], "Acme Deck.pdf")
+        self.assertEqual(listed["calendar"]["content_type"], "text/calendar")
+        pdf = kaymail.find_attachments(self.db, type_="pdf", sender="acme")
+        self.assertEqual([(r["size"], r["messages"]) for r in pdf], [(len(PDF), 2)], "same bytes, one row")
+        logo = kaymail.find_attachments(self.db, message_id=deck, noise=True, kind="image")
+        self.assertEqual(logo[0]["is_noise"], 1)
+        [q3] = kaymail.find_attachments(self.db, message_id=self.message_id(2))
+        self.assertEqual((q3["kind"], q3["content_type"]), ("document", "application/pdf"))
+
+    def test_backfill_rebuilds_the_same_rows_and_reruns_as_a_no_op(self):
+        self.server.mail[4] = deck_message()
+        kaymail.sync_once(self.db, self.acct, None)
+        snapshot = lambda: self.db.execute(
+            "SELECT ma.message_id, ma.part_index, ma.filename, a.sha256, a.kind, a.is_noise "
+            "FROM message_attachments ma JOIN attachments a ON a.id = ma.attachment_id ORDER BY 1, 2").fetchall()
+        before = [tuple(r) for r in snapshot()]
+        for table in ("message_attachments", "attachments", "attachment_scans"):
+            self.db.execute(f"DELETE FROM {table}")  # an archive synced before attachments were indexed
+        self.assertEqual(kaymail.backfill_attachments(self.db), (4, 5))
+        self.assertEqual([tuple(r) for r in snapshot()], before)
+        self.assertEqual(kaymail.backfill_attachments(self.db), (0, 0))
+
+    def test_attachment_files_decode_exactly_and_save_under_a_safe_name(self):
+        self.server.mail[4] = deck_message("../../etc/Acme Deck.pdf")
+        kaymail.sync_once(self.db, self.acct, None)
+        [pdf] = kaymail.find_attachments(self.db, type_="pdf", sender="acme")
+        self.assertEqual(kaymail.attachment_bytes(self.db, pdf["id"]), PDF)
+        cached = kaymail.cache_attachment(self.db, pdf["id"])
+        self.assertEqual((cached.read_bytes(), cached.suffix), (PDF, ".pdf"))
+        self.assertEqual(stat.S_IMODE(cached.stat().st_mode), 0o600)
+        downloads = Path(self.tmp.name) / "downloads"
+        downloads.mkdir()
+        from contextlib import redirect_stdout
+        from io import StringIO
+        with redirect_stdout(StringIO()):
+            kaymail.cmd_attachment(Namespace(id=pdf["id"], save=str(downloads), path=False, json=False))
+        self.assertEqual([p.name for p in downloads.iterdir()], ["Acme Deck.pdf"])
+        self.assertEqual(kaymail.safe_filename("..", "fallback.bin"), "fallback.bin")
+        self.assertEqual(kaymail.safe_filename("a\\b\x00c.pdf", "x"), "bc.pdf")
+
     def test_bad_password_is_reported_not_retried(self):
         self.acct["password"] = "wrong"
         with self.assertRaises(kaymail.AuthFailed):
@@ -203,6 +275,7 @@ class KaymailTest(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(kaymail.config_path().stat().st_mode), 0o600)
         raw = kaymail.raw_path(self.acct["address"], self.rows()[0]["sha256"])
         self.assertEqual(stat.S_IMODE(raw.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE((kaymail.data_dir() / "index.sqlite").stat().st_mode), 0o600)
         self.assertEqual(kaymail.load_accounts()[0]["password"], "s3cret")
 
     def test_refuses_to_store_inside_a_git_checkout(self):
