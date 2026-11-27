@@ -1,0 +1,33 @@
+{
+  "name": "kay-os-connector",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // The connector's address: Claude adds https://mcp.kay-os.lol/mcp. kay-os.lol is a zone in this
+  // account, so Cloudflare makes the DNS record and certificate for the custom domain.
+  "routes": [{ "pattern": "mcp.kay-os.lol", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false,
+  // Read only, by convention: src/store.ts is the only way in (bindings can't be made read-only).
+  "r2_buckets": [{ "binding": "MAIL", "bucket_name": "kay-os-mail" }],
+  "d1_databases": [
+    // The index the sync Worker writes. Its migrations live in sync-worker/migrations; none here.
+    { "binding": "INDEX", "database_name": "kay-os-mail-index", "database_id": "e23c087c-9638-432e-9f3a-1980a6412fcd" },
+    // The call log, the one database this Worker writes (migrations/0001_log.sql).
+    {
+      "binding": "LOG",
+      "database_name": "kay-os-connector-log",
+      "database_id": "fa079e20-9273-46bb-81b8-aa390c29bd21",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "ISSUER": "https://id.didi.sh",
+    // id.didi.sh's registered resource for this connector; every token's aud must equal it.
+    "RESOURCE": "https://mcp.kay-os.lol",
+    // Michael's didi account id. Empty refuses everyone and logs the id that tried: set it after
+    // the first sign-in. FILE_LINK_KEY is a Worker secret, not a var (Doppler:
+    // KAYOS_CONNECTOR_FILE_LINK_KEY, sent at deploy).
+    "ALLOWED_DIDI_ID": ""
+  },
+  "observability": { "enabled": true }
+}

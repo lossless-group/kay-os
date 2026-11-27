@@ -1,0 +1,17 @@
+{
+  "name": "kay-os-connector",
+  "private": true,
+  "type": "module",
+  "description": "The kay-os mail archive as a remote MCP server for the Claude app: read-only, signed in through id.didi.sh.",
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "local": "node scripts/local.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
+  },
+  "dependencies": {
+    "postal-mime": "2.7.6"
+  }
+}
