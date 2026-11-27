@@ -63,6 +63,13 @@ with `OPENPANEL_CLIENT_ID` set, so local dev never sends events.
   Pages workflow passes it to the build.
 - That client's **supported domains** must include
   `https://lossless-group.github.io/`, or every event gets a 401.
+- **kay-os.lol has its own OpenPanel client**, with `https://kay-os.lol` and
+  `https://www.kay-os.lol` as its allowed domains. Its ID is in Doppler
+  (`kay-os/prd`) as `OPENPANEL_CLIENT_ID`, and it goes to the build that
+  serves kay-os.lol. The GitHub Pages copy keeps `splash_kay-os` (the repo
+  Variable above), so the two addresses report separately.
+- `OPENPANEL_SECRET`, also in Doppler, is for OpenPanel's server-side API
+  only. The page never needs it, so it is never passed to a site build.
 - If your shell exports `NODE_ENV=development`, a local `pnpm build` is not
   a production build and leaves the script out. Use
   `NODE_ENV=production pnpm build` to check it.
