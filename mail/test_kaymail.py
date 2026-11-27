@@ -304,7 +304,8 @@ class SharedAttachmentRulesTest(unittest.TestCase):
 class CloudSchemaParityTest(unittest.TestCase):
     """The Worker's D1 index (sync-worker/migrations) must keep the laptop's table shapes."""
 
-    TABLES = ("messages", "messages_fts", "attachments", "message_attachments", "attachment_scans")
+    TABLES = ("messages", "messages_fts", "attachments", "message_attachments", "attachment_scans",
+              "calendar_events", "calendar_attendees", "calendar_occurrences")
     # Laptop-fetched mail has no Gmail UID in R2; see migrations/0001_index.sql.
     MAY_BE_NULL_IN_D1 = {("messages", "mailbox"), ("messages", "uidvalidity"), ("messages", "uid")}
 

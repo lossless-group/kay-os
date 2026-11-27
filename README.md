@@ -96,6 +96,18 @@ uv run calendar/import_takeout.py ... --expand-until 2028-12-31   # open-ended s
 Tests: `uv run --with icalendar==7.3.2 --with recurring-ical-events==3.8.2 python -m unittest discover -s calendar -p 'test_*.py'`
 (`discover`, because a `calendar.` module path would collide with Python's own `calendar`).
 
+To put an account's calendar rows in the cloud for the connector's calendar
+tools, `calendar/push_to_d1.py` (standard library only) copies them from the
+laptop index to D1, one account and source at a time, replacing what the last
+push wrote. `--dry-run` writes the SQL files and prints counts without touching
+Cloudflare; the files hold real calendar data, so they go in a private temp
+folder outside any checkout (deleted after a real push).
+
+```bash
+python3 calendar/push_to_d1.py --account michael@learnstart.vc --source takeout --dry-run
+python3 calendar/push_to_d1.py --account michael@learnstart.vc --source takeout
+```
+
 ### Calendars (Google, direct)
 
 `calendar/gcal_grant.py` gives kay-os its own access to a Google account's
