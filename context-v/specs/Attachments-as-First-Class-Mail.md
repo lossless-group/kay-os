@@ -9,7 +9,7 @@ authors:
   - Michael Staton
 augmented_with:
   - Claude Code on Claude Opus 5.5
-at_semantic_version: 0.0.2.0
+at_semantic_version: 0.0.3.0
 status: Implementing
 site_uuid: 417c81b7-006e-4da5-a33e-8191ffc4da39
 hex_code: 1htbxa
@@ -21,9 +21,12 @@ summary: >-
   agents list and open them. Phase 2 converts documents to Markdown with
   Docling and makes their text keyword-searchable. Phase 3 adds search by
   meaning with sqlite-vec and Reciprocal Rank Fusion. Phase 4 builds a
-  correspondent graph from headers. Everything stays local in index.sqlite
-  plus one folder of Markdown; kaymail's sync stays standard-library only.
-  LLM entity extraction, hosted stores, and phone access are out of scope.
+  correspondent graph from headers. Phase 1 shipped locally on 2026-11-26.
+  A Cloud section puts the same index on Cloudflare (a D1 database the sync
+  Worker fills as mail arrives and backfills from R2, then a remote MCP
+  connector), starting with michael@humain.vc, so the archive works without
+  the laptop and Claude can reach it from the phone. LLM entity extraction
+  stays out of scope.
 tags:
   - Spec
   - Email
@@ -94,14 +97,16 @@ Each of these should be one tool call or one command when we're finished:
 ## Non-Goals
 
 - **No new servers.** No Postgres, graph database, vector database service, or
-  DuckDB/Parquet copy.
+  DuckDB/Parquet copy. The cloud side uses Cloudflare pieces the archive
+  already relies on (Workers, Durable Objects, R2) plus D1.
 - **No LLM extraction of entities or facts** (Graphiti and similar). Deferred
   until Phase 4 shows where it's worth the cost.
 - **No hosted parsing or embedding by default.** Attachment text doesn't leave
   the machine unless Michael chooses an API embedding provider (see Open
   Questions).
-- **No phone or Worker access.** That depends on the separate decision about
-  making the R2 copy queryable ([[Database-Setup-for-Email]]).
+- ~~**No phone or Worker access.**~~ *Reversed 2026-11-26:* there's no
+  always-on machine at home, so the archive has to work from Cloudflare. See
+  [[#Cloud: the same index on Cloudflare]].
 - **No opening of archives.** `.zip`, `.rar`, and similar are inventoried but
   not unpacked in this version.
 - **No changes to sync's read-only guarantees.** Nothing here talks to a mail
@@ -444,6 +449,70 @@ and "who else is on threads with Y" by combining search results with the
 graph. It returns people, counts, and the message and attachment ids behind
 each claim, so every answer can be checked.
 
+### Cloud: the same index on Cloudflare
+
+*Added 2026-11-26.* The laptop isn't always on, so an archive that only the
+laptop can index stops being useful the moment the lid closes. The sync Worker
+already fetches new mail into R2 four times a day (7am, 11am, 3pm, 7pm US
+Central), for `mpstaton@gmail.com` and `michael@humain.vc`. Nothing indexes
+what it fetches: about 1,570 Gmail messages since 2026-11-07 are in R2 and
+searchable nowhere. This section closes that gap. It follows the cloud design
+in [[Attachments-Search-and-a-Knowledge-Graph]] (Worker, D1, R2; a Container
+for Docling later).
+
+**v1 is michael@humain.vc** (714 messages): small enough to backfill in one
+run and check by hand. The two large accounts follow once v1 holds up. The
+v2 after it is a digest a few times a day. Triage that acts on mail waits for
+written decision rules.
+
+**C1. A D1 index with the same tables.** One D1 database, `kay-os-mail-index`,
+bound to the sync Worker as `INDEX`. It holds the Phase 1 tables (`messages`,
+`attachments`, `message_attachments`, `attachment_scans`) with the same columns
+as `index.sqlite`, plus `messages_fts`. One difference: `messages.body` keeps
+the first 20,000 characters (laptop: 200,000), since the full message is in
+R2 and D1 caps a database at 10 GB. At about 440,000 messages that's well
+under the cap. If 12 accounts outgrow it, split into one database per account
+then, not now. Schema changes go through numbered migration files in
+`sync-worker/migrations/`.
+
+**C2. The Worker indexes each message as it stores it.** After writing the
+`.eml` to R2, the Worker parses it and writes the message row, its full-text
+row, and its attachments (kinds, noise rule, and sniffed types exactly as in
+Phase 1), in one D1 batch. MIME parsing uses `postal-mime`, the Worker's first
+dependency, pinned to an exact version. An indexing failure is recorded in
+`attachment_scans` with status `error` and never stops the sync: the `.eml` is
+already safe in R2. The Python and TypeScript versions of the kind and noise
+rules share one set of test cases (a JSON file both test suites read), so they
+can't drift apart.
+
+**C3. The Worker backfills the index from R2.** Each run, after syncing, each
+account's Durable Object indexes up to 500 `.eml` files under `raw/<account>/`
+that aren't in D1 yet, keeping its place in Durable Object storage. Metadata
+comes from the matching `meta/` JSON when the Worker fetched the message, and
+from the headers alone when the laptop did (those have no Gmail UID, labels,
+or thread id in R2; `thread_id` is left empty). humain's 714 messages finish
+in one run. Gmail's 230,000 take about 115 runs, roughly a month at four runs
+a day, unless a separate catch-up schedule is added for the backfill.
+
+**C4. A remote MCP connector.** A Worker serving MCP over HTTP with a login,
+so Claude in the Claude app (phone included) can use the same tools as
+`kaymcp.py`: `search_mail`, `read_message`, `list_attachments`,
+`get_attachment`, reading D1 for search and R2 for message and file contents.
+Drafting stays laptop-only for now. This gets its own short spec before any
+code, because the login is the whole security story: one allowed account,
+read-only tools, every call logged, email and attachment content inside the
+untrusted-content markers. Phone access is the point of this step, and also
+its biggest risk: a prompt injection in any email reaches a Claude session that
+can read everything.
+
+**What stays the same.** Sync is still read-only (`EXAMINE`, `BODY.PEEK`). R2
+`raw/` is still the source of truth, and D1 can be rebuilt from it at any
+time. The laptop keeps its own `index.sqlite`; neither index feeds the other.
+
+Implementation plans, one per step, sized to hand to a subagent:
+[[Plan-C1-D1-Cloud-Index]], [[Plan-C2-Worker-Indexes-New-Mail]],
+[[Plan-C3-Backfill-Index-From-R2]], [[Plan-C4-Remote-MCP-Connector]].
+
 ## Acceptance Criteria
 
 **Phase 1**
@@ -475,6 +544,18 @@ each claim, so every answer can be checked.
   16, and hybrid beats keyword-only on the same set.
 - With sqlite-vec unavailable, search still answers with keyword results.
 
+**Cloud (v1, michael@humain.vc)**
+- D1 holds one `messages` row per humain `.eml` in R2 (714 as of 2026-11-26,
+  plus whatever arrived since), and its attachment totals by kind match the
+  laptop's `attachment_report` for humain within the difference in body
+  length.
+- A message that arrives in Gmail is in D1, with its attachments, after the
+  next scheduled run, with no laptop involved.
+- Killing a run halfway and letting the next one go leaves no duplicates and
+  no gaps.
+- The connector (C4) answers "the PDFs from last week" from the Claude app,
+  and refuses every account but Michael's.
+
 **Phase 4**
 - For 10 people Michael picks, the top correspondents and shared documents
   match his sense of reality, and every answer cites message ids.
@@ -500,7 +581,11 @@ each claim, so every answer can be checked.
 ## Rollout
 
 Each phase is a separate branch off `development`, merged when its acceptance
-criteria pass, with its own changelog entry. Phase 1 can start immediately.
+criteria pass, with its own changelog entry. Phase 1 shipped on 2026-11-26
+(local). The cloud steps go C1 → C2 → C3 in order (C2 and C3 both need C1's
+tables; C3 reuses C2's indexing code), with C4's spec written alongside and
+its code after C3. The parent session creates Cloudflare resources and
+deploys; subagents build and test locally.
 Phase 2 starts once Phase 1's totals are known. Phase 3 needs the embedding
 decision below. Phase 4 can run in parallel with 2 or 3, since it reads only
 headers.
