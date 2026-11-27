@@ -1,4 +1,5 @@
-// HTTP routes and MCP over stateless Streamable HTTP (MCP 2025-11-25, basic/transports):
+// HTTP routes and MCP over stateless Streamable HTTP, dual-era: MCP 2026-07-28 (per-request
+// version, server/discover) and 2025-11-25 and earlier (initialize handshake):
 //   GET  /.well-known/oauth-protected-resource[/mcp]  RFC 9728 metadata naming id.didi.sh
 //   POST /mcp                                          JSON-RPC, one message per request, JSON replies
 //   GET|DELETE /mcp                                    405: no SSE stream, no sessions
@@ -13,8 +14,17 @@ import { HANDLERS, TOOLS, ToolError } from "./tools.ts";
 import { ReadOnlyIndex, ReadOnlyMail, type ReadBucket } from "./store.ts";
 
 export const MCP_PATH = "/mcp";
+// Legacy: an initialize handshake picks the version. Modern (2026-07-28 on): every request names
+// its version in the MCP-Protocol-Version header and in params._meta, with no handshake. The
+// connector speaks both ("dual-era", MCP 2026-07-28 basic/versioning).
 export const SUPPORTED_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26"];
+export const MODERN_VERSIONS = ["2026-07-28"];
+const ALL_VERSIONS = [...MODERN_VERSIONS, ...SUPPORTED_VERSIONS];
 const LATEST_VERSION = SUPPORTED_VERSIONS[0];
+const META_VERSION = "io.modelcontextprotocol/protocolVersion";
+// MCP 2026-07-28 error codes (basic/transports/streamable-http, basic/versioning).
+const HEADER_MISMATCH = -32020;
+const UNSUPPORTED_VERSION = -32022;
 const SERVER_INFO = { name: "kay-os-mail", version: "0.1.0" };
 
 // kaymcp.py's instructions with drafting taken out, then the hard rule from kay-os AGENTS.md,
@@ -48,7 +58,39 @@ const JSON_HEADERS = { "content-type": "application/json", "cache-control": "no-
 const jsonResponse = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { ...JSON_HEADERS, ...headers } });
 
-const rpcError = (id: unknown, code: number, message: string) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
+const rpcError = (id: unknown, code: number, message: string, data?: unknown) =>
+  ({ jsonrpc: "2.0", id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } });
+
+/** Base64 sentinel values (=?base64?...?=) for Mcp-Name, decoded (streamable-http Value Encoding). */
+function decodeHeaderValue(value: string): string {
+  const m = /^=\?base64\?(.*)\?=$/.exec(value);
+  return m ? new TextDecoder().decode(Uint8Array.from(atob(m[1]), (ch) => ch.charCodeAt(0))) : value;
+}
+
+/** What's wrong when a modern request's mirrored headers disagree with its body, or null. Servers
+ *  MUST reject these, so a proxy routing on a header can't be steered away from what runs. */
+function headerMismatch(request: Request, msg: Record<string, unknown>, version: string): string | null {
+  const params = (msg.params && typeof msg.params === "object" ? msg.params : {}) as Record<string, unknown>;
+  const meta = (params._meta && typeof params._meta === "object" ? params._meta : {}) as Record<string, unknown>;
+  if (meta[META_VERSION] !== undefined && meta[META_VERSION] !== version) {
+    return `_meta protocol version ${String(meta[META_VERSION])} does not match header ${version}`;
+  }
+  const method = request.headers.get("mcp-method");
+  if (method === null) return "Mcp-Method header is required";
+  if (method !== msg.method) return `Mcp-Method ${method} does not match body method ${String(msg.method)}`;
+  if (msg.method === "tools/call") {
+    const name = request.headers.get("mcp-name");
+    if (name === null) return "Mcp-Name header is required for tools/call";
+    let decoded: string;
+    try {
+      decoded = decodeHeaderValue(name);
+    } catch {
+      return "Mcp-Name is not valid base64";
+    }
+    if (decoded !== params.name) return `Mcp-Name ${decoded} does not match tool ${String(params.name)}`;
+  }
+  return null;
+}
 
 export function protectedResourceMetadata(resource: string, issuer: string) {
   return {
@@ -108,13 +150,21 @@ async function callTool(deps: Deps, sub: string, params: Record<string, unknown>
 
 class LookupError extends Error {}
 
-/** The JSON-RPC reply to one request (kaymcp.handle). */
-async function rpc(deps: Deps, sub: string, message: Record<string, unknown>) {
+/** The JSON-RPC reply to one request (kaymcp.handle). `modern` serves MCP 2026-07-28: no
+ *  initialize, server/discover instead, and every result marked complete. */
+async function rpc(deps: Deps, sub: string, message: Record<string, unknown>, modern = false) {
   const { method, id } = message;
   const params = (message.params && typeof message.params === "object" ? message.params : {}) as Record<string, unknown>;
   try {
     let result: unknown;
-    if (method === "initialize") {
+    if (modern && method === "server/discover") {
+      result = {
+        supportedVersions: ALL_VERSIONS,
+        capabilities: { tools: {} },
+        _meta: { "io.modelcontextprotocol/serverInfo": SERVER_INFO },
+        instructions: INSTRUCTIONS,
+      };
+    } else if (method === "initialize" && !modern) {
       const asked = params.protocolVersion;
       result = {
         protocolVersion: typeof asked === "string" && SUPPORTED_VERSIONS.includes(asked) ? asked : LATEST_VERSION,
@@ -131,6 +181,7 @@ async function rpc(deps: Deps, sub: string, message: Record<string, unknown>) {
     } else {
       return rpcError(id, -32601, `Unknown method: ${String(method)}`);
     }
+    if (modern) result = { resultType: "complete", ...(result as Record<string, unknown>) };
     return { jsonrpc: "2.0", id, result };
   } catch (err) {
     if (err instanceof LookupError) return rpcError(id, -32602, err.message);
@@ -176,11 +227,27 @@ async function handleMcp(request: Request, deps: Deps): Promise<Response> {
   }
   const msg = message as Record<string, unknown>;
 
-  // After initialize, the client names the negotiated version on every request; an unsupported one
-  // MUST get 400. A missing header means 2025-03-26, which is supported.
+  // A version this server doesn't speak MUST get 400 with UnsupportedProtocolVersionError listing
+  // what it does, so a modern client retries rather than giving up. A missing header means
+  // 2025-03-26, which is supported. initialize always selects the legacy handshake.
   const version = request.headers.get("mcp-protocol-version");
-  if (msg.method !== "initialize" && version !== null && !SUPPORTED_VERSIONS.includes(version)) {
-    return jsonResponse(rpcError(msg.id, -32600, `Unsupported MCP-Protocol-Version: ${version}`), 400);
+  if (msg.method !== "initialize" && version !== null && !ALL_VERSIONS.includes(version)) {
+    return jsonResponse(
+      rpcError(msg.id, UNSUPPORTED_VERSION, "Unsupported protocol version", { supported: ALL_VERSIONS, requested: version }),
+      400,
+    );
+  }
+
+  if (msg.method !== "initialize" && version !== null && MODERN_VERSIONS.includes(version)) {
+    const mismatch = headerMismatch(request, msg, version);
+    if (mismatch) return jsonResponse(rpcError(msg.id, HEADER_MISMATCH, `Header mismatch: ${mismatch}`), 400);
+    if (typeof msg.method !== "string" || msg.id === undefined || msg.id === null) {
+      return new Response(null, { status: 202 });
+    }
+    const reply = await rpc(deps, auth.sub, msg, true);
+    // Modern HTTP: an unknown method is 404 with -32601, which tells it apart from a legacy server.
+    const status = "error" in reply && (reply.error as { code: number }).code === -32601 ? 404 : 200;
+    return jsonResponse(reply, status);
   }
 
   // Notifications and responses: accepted, no body.

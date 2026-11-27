@@ -103,6 +103,74 @@ test("transport rules: GET and DELETE get 405, bad JSON and batches 400, an unkn
   assert.equal((await c.send(new Request(`${RESOURCE}/nothing`))).status, 404);
 });
 
+// MCP 2026-07-28 ("modern"): no initialize, the version rides on every request (header and _meta),
+// and Mcp-Method / Mcp-Name mirror the body. The Claude app opens with a modern request; a bare 400
+// there made it report the connector as refusing it, even though the legacy fallback then worked.
+const MODERN = "2026-07-28";
+const modernMeta = { "io.modelcontextprotocol/protocolVersion": MODERN, "io.modelcontextprotocol/clientInfo": { name: "claude-ai", version: "1" }, "io.modelcontextprotocol/clientCapabilities": {} };
+function modernHeaders(method: string, name?: string): Record<string, string> {
+  return { "mcp-protocol-version": MODERN, "mcp-method": method, ...(name ? { "mcp-name": name } : {}) };
+}
+
+test("modern (2026-07-28): server/discover lists both eras, and tools work without initialize", async () => {
+  const c = await connector();
+  const discover = await c.rpc("server/discover", { _meta: modernMeta }, { headers: modernHeaders("server/discover") });
+  assert.equal(discover.status, 200);
+  const d = (await discover.json()) as { result: Record<string, unknown> };
+  assert.equal(d.result.resultType, "complete");
+  assert.deepEqual(d.result.supportedVersions, [MODERN, "2025-11-25", "2025-06-18", "2025-03-26"]);
+  assert.deepEqual(d.result.capabilities, { tools: {} });
+  assert.deepEqual((d.result._meta as Record<string, unknown>)["io.modelcontextprotocol/serverInfo"], { name: "kay-os-mail", version: "0.1.0" });
+  assert.equal(d.result.instructions, INSTRUCTIONS);
+
+  const list = (await (await c.rpc("tools/list", { _meta: modernMeta }, { headers: modernHeaders("tools/list") })).json()) as { result: { resultType: string; tools: { name: string }[] } };
+  assert.equal(list.result.resultType, "complete");
+  assert.deepEqual(list.result.tools.map((t) => t.name), ["search_mail", "read_message", "list_attachments", "get_attachment"]);
+
+  const call = await c.rpc("tools/call", { name: "search_mail", arguments: {}, _meta: modernMeta }, { headers: modernHeaders("tools/call", "search_mail") });
+  assert.equal(call.status, 200);
+  const body = (await call.json()) as { result: { resultType: string; isError?: boolean } };
+  assert.equal(body.result.resultType, "complete");
+  assert.notEqual(body.result.isError, true);
+});
+
+test("modern: header/body mismatches are 400 HeaderMismatch, an unknown method 404, an unknown version 400 listing what's supported", async () => {
+  const c = await connector();
+  const errorOf = async (res: Response) => ((await res.json()) as { error: { code: number; data?: unknown } }).error;
+
+  const wrongMethod = await c.rpc("tools/list", { _meta: modernMeta }, { headers: modernHeaders("tools/call") });
+  assert.equal(wrongMethod.status, 400);
+  assert.equal((await errorOf(wrongMethod)).code, -32020);
+
+  const noMethodHeader = await c.rpc("tools/list", { _meta: modernMeta }, { headers: { "mcp-protocol-version": MODERN } });
+  assert.equal(noMethodHeader.status, 400);
+  assert.equal((await errorOf(noMethodHeader)).code, -32020);
+
+  const wrongName = await c.rpc("tools/call", { name: "search_mail", arguments: {}, _meta: modernMeta }, { headers: modernHeaders("tools/call", "read_message") });
+  assert.equal(wrongName.status, 400);
+  assert.equal((await errorOf(wrongName)).code, -32020);
+
+  const metaDisagrees = await c.rpc("tools/list", { _meta: { ...modernMeta, "io.modelcontextprotocol/protocolVersion": "2025-11-25" } }, { headers: modernHeaders("tools/list") });
+  assert.equal(metaDisagrees.status, 400);
+  assert.equal((await errorOf(metaDisagrees)).code, -32020);
+
+  const unknownMethod = await c.rpc("resources/list", { _meta: modernMeta }, { headers: modernHeaders("resources/list") });
+  assert.equal(unknownMethod.status, 404);
+  assert.equal((await errorOf(unknownMethod)).code, -32601);
+
+  const future = await c.rpc("tools/list", undefined, { headers: { "mcp-protocol-version": "2099-01-01", "mcp-method": "tools/list" } });
+  assert.equal(future.status, 400);
+  const err = await errorOf(future);
+  assert.equal(err.code, -32022);
+  assert.deepEqual(err.data, { supported: [MODERN, "2025-11-25", "2025-06-18", "2025-03-26"], requested: "2099-01-01" });
+});
+
+test("modern requests still need Michael's token, and the account check still applies", async () => {
+  const c = await connector({ allowedSub: "someone-else" });
+  const res = await c.rpc("server/discover", { _meta: modernMeta }, { headers: modernHeaders("server/discover") });
+  assert.equal(res.status, 403);
+});
+
 test("each tool call is logged with its arguments and the caller, and nothing from the email", async () => {
   const c = await connector();
   await c.add(new TextEncoder().encode("From: ada@example.com\r\nSubject: Secret subject\r\n\r\nsecret body"));
