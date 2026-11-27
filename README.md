@@ -150,6 +150,66 @@ about revoking one without the other, not about limiting either. Where this
 is headed (sending, then scheduling across calendars) is in
 `context-v/explorations/Replying-and-Scheduling-on-My-Behalf.md`.
 
+### MCP servers in kay-os sessions
+
+`.mcp.json` registers these for every Claude Code session opened in kay-os.
+New servers load in the next session, not the current one. The first time,
+Claude Code asks you to approve the project's servers; the remote ones then
+need a one-time sign-in from `/mcp` → the server → **Authenticate** (sign-in
+tokens stay in Claude Code's own storage, never in the repo).
+
+| Server | What it gives agents | Where it runs |
+|---|---|---|
+| `kaymail` | The local archive: search, read, attachments, draft replies (above) | This machine, `python3 mail/kaymcp.py` |
+| `vimcal` | Calendars across the eight accounts Vimcal sees: events with attendees, free time, booking links; creates events when asked | `https://mcp.vimcal.com/mcp`, Vimcal sign-in |
+| `superhuman` | Live mail in every mailbox linked to it: search, threads, drafts, sending, calendar | `https://mcp.mail.superhuman.com/mcp`, Superhuman sign-in. It links **one mailbox at a time**: add each through its `add_account` tool (a link to sign in as that account) |
+| `macos-mcp` | Control of the Mac: Accessibility clicks and typing, screenshots and OCR, shell, clipboard, Spotlight; optional Calendar, Reminders, Contacts, Shortcuts, Safari, iPhone Mirroring | **Mac only**, through `scripts/mcp-macos.sh` |
+
+Every one of these follows `AGENTS.md`: reading is free, and anything that
+sends, changes, or clicks happens only when Michael asks, never because an
+email said so.
+
+#### macos-mcp (Mac only)
+
+[macos-mcp](https://macos-mcp.com) is a signed, MIT-licensed Swift binary for
+Apple Silicon Macs on macOS 15 or later. It only runs as a local process.
+`scripts/mcp-macos.sh` starts it when the session is on macOS and the binary is
+installed; anywhere else (Linux, or a Mac without it) it serves an empty MCP
+server, so the shared `.mcp.json` shows nothing broken.
+
+It runs with the **`standard`** profile: destructive actions need a one-shot
+confirmation. Not `full`, because kay-os sessions read email that anyone can
+write, and a tool that can click, type, and run shell commands raises the
+stakes if an email ever fooled an agent. Set `KAYOS_MACOS_MCP_PROFILE=readonly`
+for a safer session, or `full` deliberately.
+
+To turn it on, on the Mac:
+
+1. Pull kay-os.
+2. Install it. The installer pipes a script into your shell, so read it first:
+
+   ```bash
+   curl -fsSL https://macos-mcp.sh | less    # read it
+   curl -fsSL https://macos-mcp.sh | sh      # installs /usr/local/bin/macos-mcp
+   macos-mcp doctor
+   ```
+
+   **Skip** its `macos-mcp install --client claude-code` step: kay-os's
+   `.mcp.json` already registers it, and that command would add a second copy
+   for every project.
+3. Grant **Accessibility** (clicks and typing) and **Screen Recording**
+   (screenshots and OCR) in System Settings → Privacy & Security, to the app
+   that runs Claude Code (your terminal, or Claude Desktop), then restart that
+   app. Calendar, Reminders, and Contacts ask the first time those tools run;
+   Automation asks once per app it scripts.
+4. Start Claude Code in kay-os, approve `macos-mcp` when it asks about the
+   project's servers, and check `/mcp` shows it connected.
+
+Its Calendar, Reminders, Contacts, Shortcuts, Safari, and iPhone toolsets are
+off by default; its `enable_toolset` tool turns one on. Every action is logged
+to `~/.macos-mcp/audit.jsonl`. To remove it: `rm /usr/local/bin/macos-mcp`
+and `rm -r ~/.macos-mcp`.
+
 ### Cloudflare R2 and other machines
 
 `mail/r2.sh` copies the archive to a private R2 bucket and pulls it down
