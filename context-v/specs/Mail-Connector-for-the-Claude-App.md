@@ -9,8 +9,8 @@ authors:
   - Michael Staton
 augmented_with:
   - Claude Code on Claude Opus 5.5
-at_semantic_version: 0.0.2.0
-status: In-Review
+at_semantic_version: 0.0.3.0
+status: Implementing
 site_uuid: f487feb3-3e98-479e-9daf-c442e5532f27
 hex_code: ac8098
 summary: >-
@@ -157,6 +157,39 @@ plus an `entity` claim; one-hour access tokens, refresh tokens rotated on use,
 redeployed on Fly before Claude can sign in to it. The Worker then requires
 `aud` = `https://mcp.kay-os.lol`, `iss` = `https://id.didi.sh`, and `sub` =
 `ALLOWED_DIDI_ID`.
+
+**4. Built and deployed (2026-11-27).** `connector/`, Worker
+`kay-os-connector`, live at `https://mcp.kay-os.lol` (kay-os `4fe1d41`).
+Discovery answers, and an MCP request without a token gets `401` pointing at
+id.didi.sh. Decisions the build made against the MCP spec and Claude's docs:
+
+- **Resource in the metadata is `https://mcp.kay-os.lol/mcp`**, because
+  Claude's docs require the metadata `resource` to equal the URL as typed,
+  path included. Token `aud` is still checked as exactly
+  `https://mcp.kay-os.lol`, which is what id.didi.sh's `resolve_resource` maps
+  `/mcp` to.
+- **`Origin` is checked**, as MCP 2025-11-25's transport section requires:
+  absent is allowed; otherwise the connector's own origin, `https://claude.ai`
+  and `https://claude.com`, overridable with `ALLOWED_ORIGINS`. A `403` before
+  sign-in on the first real connection points here first.
+- **Protocol versions 2025-11-25, 2025-06-18 and 2025-03-26** are accepted;
+  the server is stateless, so `tools/call` works without `initialize`.
+- **A genuine token for a didi account that isn't allowed gets `403`**, not
+  `401`, so Claude doesn't loop through sign-in; with `ALLOWED_DIDI_ID` empty
+  everyone is refused and the id that tried is logged, to be set after the
+  first sign-in.
+- **Read-only index**: only single `SELECT` statements reach D1's index (no
+  `;`, no `WITH`); a test fails on any write in `src/` other than the call
+  log's one `INSERT`.
+- **Download links** bind the attachment's hash, the didi id, and a 15-minute
+  expiry, signed with `FILE_LINK_KEY` (Doppler
+  `KAYOS_CONNECTOR_FILE_LINK_KEY`). Expired: `410`; bad or wrong: `404`;
+  `.eml` over 50 MB: `413`.
+- **id.didi.sh's consent screen asks for an entity**, so Michael's didi
+  account must be able to reach at least one, or sign-in fails there.
+
+Still to do before it's usable: the `oauth_resources` entry in id.didi.sh and
+its redeploy, then the first sign-in and `ALLOWED_DIDI_ID`.
 
 **3. Settled defaults.**
 
