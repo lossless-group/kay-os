@@ -7,7 +7,7 @@ authors:
   - Michael Staton
 augmented_with:
   - Claude Code on Claude Opus 5.5
-at_semantic_version: 0.0.0.1
+at_semantic_version: 0.0.1.0
 status: Ready
 site_uuid: 5c921919-2492-4feb-9413-0a89d3651c20
 hex_code: 3f6fag
@@ -74,23 +74,100 @@ Michael's sign-off, because the login is the whole security story.
    - Open questions for Michael.
 3. **Stop.** Hand back the spec path and a short summary. Build nothing.
 
-## Stage 2: build (after sign-off)
+## Stage 2: build
 
-Outline only. Stage 1 will change it.
+*Rewritten 2026-11-27, after the spec's amendment.* Build v1 of the connector:
+login through id.didi.sh and the four mail tools. Calendar tools come in a
+later plan, once calendar data is in D1.
 
-- `kay-os/connector/` with its own `wrangler.jsonc`, `package.json`, tests in
-  the same style as `sync-worker/` (node test runner, in-memory fakes, the
-  C1 node:sqlite D1 stand-in).
-- Tools ported from `kaymcp.py`, reading D1 and R2. Tests for each, including
-  a prompt-injection fixture (an email that says "ignore previous
-  instructions"), which must come back inside the markers.
-- Login per the signed-off spec, with a test that a second identity is
-  refused.
-- The parent session deploys, adds the connector in the Claude app with
-  Michael, and runs the spec's acceptance checks from the phone.
+### Read first
+
+- `context-v/specs/Mail-Connector-for-the-Claude-App.md`, **the amendment at
+  the top wins** over the research sections below it.
+- `AGENTS.md` (the hard rule and the read/write split; the connector sends
+  them to every client).
+- `mail/kaymcp.py` and `mail/test_kaymcp.py`: tool names, arguments,
+  untrusted-content markers, and behaviour to match.
+- `sync-worker/`: how this repo builds a Worker (`wrangler.jsonc`, hand-written
+  runtime types in `src/cloudflare-workers.d.ts`, `src/db.ts` and the
+  `test/sqlite-db.ts` D1 stand-in, `test/memory-bucket.ts`, node test runner,
+  no frameworks), and `migrations/0001_index.sql` for the tables it reads.
+- id.didi.sh, read-only: `https://id.didi.sh/.well-known/oauth-authorization-server`
+  and `/.well-known/jwks.json` (one Ed25519 key), and in
+  `ai-labs/id-didi-sh` on `origin/main`: `lib/id_didi_sh/oauth.ex` (token
+  claims, resource matching) and `config/config.exs` (`oauth_resources`).
+
+### Build
+
+1. **`connector/`**, a new Worker named `kay-os-connector`, its own
+   `wrangler.jsonc`, `package.json`, `tsconfig.json`, in `sync-worker/`'s
+   style. Bindings: D1 `INDEX` → `kay-os-mail-index` (id
+   `e23c087c-9638-432e-9f3a-1980a6412fcd`), R2 `MAIL` → `kay-os-mail`, and a
+   second D1 `LOG` for the call log (database to be created by the parent;
+   leave a placeholder id and say so). Route:
+   `{ "pattern": "mcp.kay-os.lol", "custom_domain": true }`. Variables:
+   `ALLOWED_DIDI_ID`, `RESOURCE` = `https://mcp.kay-os.lol`, `ISSUER` =
+   `https://id.didi.sh`. No secrets are needed: tokens are verified with
+   id.didi.sh's public key.
+2. **Discovery and 401.** `GET /.well-known/oauth-protected-resource` (and the
+   `/mcp`-suffixed path) returns RFC 9728 metadata naming
+   `https://id.didi.sh` as the authorization server and `RESOURCE` as the
+   resource. Any MCP request without a valid token gets `401` with
+   `WWW-Authenticate: Bearer resource_metadata="…"`.
+3. **Token check** (`src/auth.ts`): fetch and cache the JWKS (cache an hour,
+   refetch once on an unknown `kid`), verify the EdDSA signature with
+   WebCrypto Ed25519, and require `typ` `at+jwt`, `iss` = `ISSUER`,
+   `aud` = `RESOURCE`, unexpired `exp`, and `sub` = `ALLOWED_DIDI_ID`. **If
+   `ALLOWED_DIDI_ID` is unset, refuse everyone but log the `sub` that tried**
+   (only the id), so the first sign-in tells the parent which id to allow.
+4. **MCP over streamable HTTP** at `POST /mcp`, JSON-RPC: `initialize` (with
+   the instructions string from `kaymcp.py`, hard rule included), `tools/list`,
+   `tools/call`, `ping`; notifications get `202`. Plain JSON responses are
+   enough; no SSE stream is needed for these tools. Follow the current MCP
+   spec's streamable-HTTP rules for the `Mcp-Session-Id` header if Claude
+   sends one; keep the server stateless otherwise.
+5. **Tools**, read-only, same names and arguments as `kaymcp.py`:
+   `search_mail` (D1 FTS5, same filters and `snippet()`), `read_message`
+   (D1 row; body from the R2 `.eml` parsed with `postal-mime`, cut at 30,000
+   characters; thread by `thread_id`; attachments from D1 without noise),
+   `list_attachments`, `get_attachment` (metadata and the messages it came
+   on, plus a link the Worker serves itself: `GET /files/<sha>?t=<token>`,
+   a 15-minute HMAC-signed token keyed by a secret `FILE_LINK_KEY`, decoding
+   the file from the `.eml` and checking its SHA-256). `draft_reply` is not
+   included.
+6. **Untrusted content**, per the spec: every sender-written field (bodies,
+   subjects, senders, filenames, snippets) inside markers with a random tag per
+   response, and any marker look-alikes in the content defused.
+7. **Call log**: one row per tool call in `LOG` (time, tool, arguments, ok or
+   error, `sub`), via a `migrations/0001_log.sql` in `connector/`.
+8. **Tests** with the D1 stand-in and memory bucket: discovery documents; 401
+   without a token; a token signed by a test Ed25519 key is accepted, and
+   wrong `aud`, wrong `iss`, expired, and wrong `sub` are each refused;
+   unset `ALLOWED_DIDI_ID` refuses and logs the `sub`; each tool against
+   fixture data (reuse `sync-worker/test/fixtures/deck.eml`); an email that
+   says "ignore previous instructions" comes back inside markers; a forged
+   closing marker in a body is defused; the file link checks its signature,
+   expiry, and SHA-256.
+
+### Done when
+
+- `pnpm test` and the pinned `tsc --noEmit` pass in `connector/`; the
+  `sync-worker/` and Python suites still pass.
+- A local run (`node` against the handler with the stand-ins) answers
+  `initialize`, `tools/list`, and a `search_mail` call with a test token.
+
+### Hand back
+
+Branch and commits, test counts, anything in the spec that didn't hold up
+against the MCP or Claude docs, and what the parent must do before deploying
+(create the `LOG` database, set `FILE_LINK_KEY`, register the resource in
+id.didi.sh, set `ALLOWED_DIDI_ID` after the first sign-in).
 
 ## Rules for whoever builds this
 
+- Stage 2: branch `cloud-c4-connector` off `development`. No deploy, no
+  `--remote`, no `cf.sh`, no changes to id.didi.sh. New dependencies: only
+  `postal-mime` (same pinned version as `sync-worker/`).
 - Stage 1 writes one new spec file and nothing else. Branch
   `cloud-c4-connector-spec` off `development`. Commit with the repo's
   conventions, ending with the `Co-Authored-By` line. Don't push or merge.

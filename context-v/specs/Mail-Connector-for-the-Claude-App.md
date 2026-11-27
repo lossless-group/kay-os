@@ -9,7 +9,7 @@ authors:
   - Michael Staton
 augmented_with:
   - Claude Code on Claude Opus 5.5
-at_semantic_version: 0.0.1.0
+at_semantic_version: 0.0.2.0
 status: In-Review
 site_uuid: f487feb3-3e98-479e-9daf-c442e5532f27
 hex_code: ac8098
@@ -146,13 +146,25 @@ watching. So:
   behalf unless he read the email and asked) goes into the connector's MCP
   instructions word for word, as `kaymcp.py` already does.
 
+**id.didi.sh needs the connector registered as a resource.** Checked in
+`id-didi-sh` on `main` (2026-11-27): access tokens are EdDSA JWTs with
+`typ: at+jwt`, `sub` = the didi account id, `aud` = a *registered resource*,
+plus an `entity` claim; one-hour access tokens, refresh tokens rotated on use,
+30 days, tied to the consenting didi.sh session. Resources are a list in
+`config/config.exs` (`oauth_resources`), which today holds only
+`https://memopop.didi.sh`. The connector needs
+`%{uri: "https://mcp.kay-os.lol", name: "kay-os"}` added there and id.didi.sh
+redeployed on Fly before Claude can sign in to it. The Worker then requires
+`aud` = `https://mcp.kay-os.lol`, `iss` = `https://id.didi.sh`, and `sub` =
+`ALLOWED_DIDI_ID`.
+
 **3. Settled defaults.**
 
 | Question | Answer |
 |---|---|
 | Which identity | Michael's didi account (`ALLOWED_DIDI_ID`), whichever provider he signs in with. No hard-coded Google account. |
 | Accounts shown | All accounts in the index. More mailboxes will be added after Gmail. |
-| Address | A `workers.dev` URL for now (`kay-os-mail-connector.<subdomain>.workers.dev`). `didi.sh`'s DNS is on Vercel, and a Worker custom domain needs the zone on Cloudflare, so `mail.didi.sh` would mean moving that zone first. The URL is typed once, in the Claude app. |
+| Address | **`https://mcp.kay-os.lol/mcp`** (decided 2026-11-27). Michael bought `kay-os.lol` through Cloudflare, so the zone is in the same account and the Worker claims `mcp.kay-os.lol` as a custom domain in `wrangler.jsonc`; Cloudflare makes the DNS record and certificate. The apex `kay-os.lol` stays free for later. This replaces the earlier `workers.dev` plan. |
 | Plans | Cloudflare Workers Paid (Michael will pay if it isn't already). |
 | Write-capable tools in the same chat | See below. |
 
