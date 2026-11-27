@@ -64,7 +64,7 @@ keep stopping.
 **Triage that acts on its own** (the spec's step after the digest) needs
 written decision rules that Michael has signed off, kept in
 `context-v/specs/`. Until those exist, every agent working with this archive
-is read-only plus whatever he asks for, one email at a time.
+is read-only plus whatever jobs he asks for.
 
 ## Other rules for this repo
 
