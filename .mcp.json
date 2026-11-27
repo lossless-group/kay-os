@@ -7,6 +7,10 @@
         "mail/kaymcp.py"
       ],
       "env": {}
+    },
+    "vimcal": {
+      "type": "http",
+      "url": "https://mcp.vimcal.com/mcp"
     }
   }
 }
