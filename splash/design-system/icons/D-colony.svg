@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>kay-os option D: colony</title>
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#030504" stroke="#1c2321" stroke-width="3"/>
+  <circle cx="32" cy="32" r="7" fill="#6fe3b4"/>
+  <circle cx="32" cy="15" r="6" fill="#6fe3b4"/>
+  <circle cx="46.7" cy="23.5" r="6" fill="#2a302e"/>
+  <circle cx="46.7" cy="40.5" r="6" fill="#ffb000"/>
+  <circle cx="32" cy="49" r="6" fill="#6fe3b4"/>
+  <circle cx="17.3" cy="40.5" r="6" fill="#ff4f3a"/>
+  <circle cx="17.3" cy="23.5" r="6" fill="#6fe3b4"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>kay-os option C: status lamps</title>
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#030504" stroke="#1c2321" stroke-width="3"/>
+  <rect x="11" y="15" width="42" height="8" rx="4" fill="#6fe3b4"/>
+  <rect x="11" y="28" width="28" height="8" rx="4" fill="#ffb000"/>
+  <rect x="11" y="41" width="16" height="8" rx="4" fill="#ff4f3a"/>
+  <rect x="44" y="28" width="9" height="8" rx="4" fill="#2a302e"/>
+  <rect x="32" y="41" width="21" height="8" rx="4" fill="#2a302e"/>
+</svg>
