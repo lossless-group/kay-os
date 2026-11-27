@@ -137,6 +137,22 @@ code reads: mail app passwords, R2 keys, and the Worker's account list. Until
 that's settled, 1Password stays the source of truth, and nothing here reads
 from Doppler yet.
 
+**Name every key for whose it is.** A key that belongs to a company's account,
+or was set up for another project, carries that owner as a prefix, so anyone
+reading a name knows whose credits, data, or limits a call will touch:
+
+| Prefix | Means | Examples |
+|---|---|---|
+| `KAYOS_` | kay-os's own | `KAYOS_MAIL_HUMAIN_APP_PASSWORD` |
+| `<COMPANY>_` | a company's account, used from here | `EDVIRO_CONTEXT_DEV_API_KEY`, `DECILEHUB_HUMAIN_API_KEY` |
+| `<PROJECT>_` | set up for another project in the tree | `CONTEXT_V_CHROMA_API_KEY`, `HOPE_AI_ARTIFACTS_TOKEN` |
+| none | Michael's own account for a general service | `ANTHROPIC_API_KEY`, `TAVILY_API_KEY` |
+
+Code doesn't rename a key to suit itself. When a tool expects a generic name
+(say `CONTEXT_DEV_API_KEY`), map it where the tool runs (a Worker secret, a
+`doppler run` wrapper, or a reference like `${EDVIRO_CONTEXT_DEV_API_KEY}`), so
+the owner stays visible in Doppler.
+
 Doppler sorts secrets as project → environment → config. Its starter template
 makes three environments (Development, Staging, Production), but kay-os has
 only one: the laptop and the Worker are both the real thing. So:
