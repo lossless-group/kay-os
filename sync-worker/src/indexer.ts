@@ -155,9 +155,10 @@ export async function indexMessage(db: Db, input: IndexInput): Promise<IndexOutc
   const { account, sha256: sha } = input;
   let primary = false;
   try {
-    // Mail with a UID is unique by it; mail without one by its bytes (see the migration).
+    // Mail with a UID is unique by it; mail without one by its bytes (see the migration). `=`, not
+    // `IS`: a NULL UID must not match every other UID-less row.
     const known = await db.prepare(`SELECT
-        EXISTS (SELECT 1 FROM messages WHERE account = ? AND mailbox IS ? AND uidvalidity IS ? AND uid IS ?) AS indexed,
+        EXISTS (SELECT 1 FROM messages WHERE account = ? AND mailbox = ? AND uidvalidity = ? AND uid = ?) AS indexed,
         EXISTS (SELECT 1 FROM messages WHERE account = ? AND sha256 = ?) AS seen`)
       .bind(account, input.mailbox, input.uidvalidity, input.uid, account, sha).first<{ indexed: number; seen: number }>();
     if (known?.indexed || (input.uid === null && known?.seen)) return { status: "exists" };

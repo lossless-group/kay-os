@@ -95,6 +95,8 @@ test("a message seen first without a UID is indexed by its bytes", async () => {
   const [m] = await all(db, "SELECT mailbox, uid, date, labels, flags FROM messages");
   assert.deepEqual(m, { mailbox: null, uid: null, date: "2024-01-02T13:30:00+00:00", labels: null, flags: null });
   assert.deepEqual(await indexMessage(db, await input(raw, null)), { status: "exists" });
+  const other = encoder.encode("From: bob@example.com\r\nSubject: Also hi\r\n\r\nhello again");
+  assert.equal((await indexMessage(db, await input(other, null))).status, "indexed", "other UID-less mail isn't a match");
 });
 
 // Deeper than postal-mime's 256-level limit, so parsing throws.
