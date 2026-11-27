@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { type Deps, handle } from "../src/app.ts";
 import { base64urlEncode, JwksCache, type Jwk } from "../src/auth.ts";
 import type { Db } from "../src/db.ts";
+import { type GoogleConfig, type HttpFetch, TOKEN_URL } from "../src/google.ts";
 import { bodyText, bytesOf, parse, sha256Hex } from "../src/mime.ts";
 import type { ReadBucket } from "../src/store.ts";
 import { LOG_MIGRATIONS, sqliteDb } from "./sqlite-db.ts";
@@ -130,7 +131,9 @@ export function jwksFetcher(keys: () => Jwk[]) {
 
 // ---- A whole connector ----
 
-export async function connector(options: { allowedSub?: string | null; fileLinkKey?: string | null; now?: number } = {}) {
+export async function connector(options: {
+  allowedSub?: string | null; fileLinkKey?: string | null; now?: number; myAddresses?: string[]; google?: GoogleConfig;
+} = {}) {
   const index = sqliteDb();
   const log = sqliteDb(LOG_MIGRATIONS);
   const { bucket, objects } = memoryBucket();
@@ -144,6 +147,8 @@ export async function connector(options: { allowedSub?: string | null; fileLinkK
     jwks: new JwksCache(`${ISSUER}/.well-known/jwks.json`, fetcher, () => now),
     fileLinkKey: options.fileLinkKey === null ? undefined : (options.fileLinkKey ?? "test-file-link-key"),
     allowedOrigins: [RESOURCE, "https://claude.ai"],
+    myAddresses: options.myAddresses ?? [ACCOUNT, ME_TOO],
+    google: options.google,
     now: () => now,
     defer: (p) => pending.push(p),
   };
@@ -174,6 +179,7 @@ export async function connector(options: { allowedSub?: string | null; fileLinkK
     deps, index, log, bucket, objects, key, token, send, rpc, call, logRows,
     setNow: (ms: number) => (now = ms),
     add: (raw: Uint8Array, opts?: Parameters<typeof addMessage>[3]) => addMessage(index, bucket, raw, opts),
+    addEvent: (event: CalendarEvent) => addEvent(index, event),
   };
 }
 
@@ -192,4 +198,86 @@ export function block(text: string): { tag: string; inside: string; before: stri
 export function leadingJson(inside: string): unknown {
   const end = inside.indexOf("\n\n");
   return JSON.parse(end < 0 ? inside : inside.slice(0, end));
+}
+
+// ---- Calendars ----
+
+/** Michael's second address in the tests. */
+export const ME_TOO = "me@other.example";
+
+export interface CalendarEvent {
+  uid: string;
+  summary: string;
+  /** Occurrences: [start, end] in the stored format (UTC +00:00, or dates for all-day). */
+  dates: [string, string | null][];
+  source?: string;
+  account?: string;
+  calendar?: string;
+  recurrenceId?: string;
+  sequence?: number;
+  status?: string;
+  location?: string;
+  description?: string;
+  visibility?: string;
+  allDay?: boolean;
+  updatedAt?: string;
+  importedAt?: string;
+  /** [email, partstat, is_organizer] */
+  attendees?: [string, string | null, boolean?][];
+}
+
+/** One calendar_events row with its people and dates, the way calendar/import_takeout.py writes them. */
+export async function addEvent(db: Db, e: CalendarEvent): Promise<number> {
+  const row = await db.prepare(`INSERT INTO calendar_events (source, account, calendar_id, calendar_name, uid, recurrence_id,
+      sequence, status, summary, description, location, starts_at, ends_at, all_day, visibility, updated_at, imported_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`)
+    .bind(e.source ?? "takeout", e.account ?? ACCOUNT, e.calendar ?? "Work", e.calendar ?? "Work", e.uid, e.recurrenceId ?? "",
+      e.sequence ?? 0, e.status ?? "confirmed", e.summary, e.description ?? null, e.location ?? null, e.dates[0][0],
+      e.dates[0][1], e.allDay ? 1 : 0, e.visibility ?? null, e.updatedAt ?? null, e.importedAt ?? "2026-11-27T08:00:00+00:00")
+    .first<{ id: number }>();
+  const id = row!.id;
+  for (const [email, partstat, organizer] of e.attendees ?? []) {
+    await db.prepare("INSERT INTO calendar_attendees (event_id, email, name, partstat, role, is_organizer) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(id, email, email.split("@")[0], partstat, "required", organizer ? 1 : 0).run();
+  }
+  for (const [start, end] of e.dates) {
+    await db.prepare("INSERT INTO calendar_occurrences (event_id, starts_at, ends_at) VALUES (?, ?, ?)").bind(id, start, end).run();
+  }
+  return id;
+}
+
+/** A Google that refreshes tokens and creates events, recording every request. */
+export function fakeGoogle(options: { tokens?: Record<string, string>; refuseToken?: boolean; refuseInsert?: boolean } = {}) {
+  const requests: { url: string; method: string; headers: Record<string, string>; body: string }[] = [];
+  let n = 0;
+  const fetch: HttpFetch = async (url, init) => {
+    requests.push({ url, ...init });
+    const reply = (status: number, body: unknown) => ({ ok: status < 400, status, json: async () => body });
+    if (url === TOKEN_URL) {
+      return options.refuseToken ? reply(400, { error: "invalid_grant", error_description: "Token has been expired or revoked." })
+        : reply(200, { access_token: "access-token-1", expires_in: 3599, token_type: "Bearer" });
+    }
+    if (options.refuseInsert) return reply(403, { error: { code: 403, status: "PERMISSION_DENIED", message: "nope" } });
+    const sent = JSON.parse(init.body) as Record<string, any>;
+    n += 1;
+    const id = `gev${n}`;
+    const conference = String(url).includes("conferenceDataVersion=1");
+    return reply(200, {
+      id, iCalUID: `${id}@google.com`, htmlLink: `https://www.google.com/calendar/event?eid=${id}`, status: "confirmed",
+      sequence: 0, summary: sent.summary, description: sent.description, location: sent.location,
+      created: "2026-11-27T12:00:00.000Z", updated: "2026-11-27T12:00:00.000Z",
+      start: sent.start, end: sent.end, organizer: { email: "me@example.com", self: true },
+      ...(sent.attendees ? {
+        attendees: [{ email: "me@example.com", organizer: true, self: true, responseStatus: "accepted" },
+          ...sent.attendees.map((a: { email: string }) => ({ email: a.email, responseStatus: "needsAction" }))],
+      } : {}),
+      ...(conference ? { hangoutLink: "https://meet.google.com/abc-defg-hij" } : {}),
+    });
+  };
+  const config: GoogleConfig = {
+    clientJson: JSON.stringify({ installed: { client_id: "client-id-1.apps.googleusercontent.com", client_secret: "client-secret-1" } }),
+    refreshTokens: JSON.stringify(options.tokens ?? { [ACCOUNT]: "refresh-token-1" }),
+    fetch,
+  };
+  return { config, requests };
 }

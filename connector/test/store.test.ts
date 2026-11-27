@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { CalendarWriter } from "../src/calendar-write.ts";
 import { ReadOnlyIndex, ReadOnlyMail } from "../src/store.ts";
 import { memoryBucket } from "./fixtures.ts";
 import { sqliteDb } from "./sqlite-db.ts";
@@ -23,15 +24,24 @@ test("the index wrapper runs one SELECT and refuses anything else", async () => 
   assert.deepEqual(Object.getOwnPropertyNames(ReadOnlyIndex.prototype).sort(), ["all", "constructor", "first"]);
 });
 
-test("every statement in the connector's source that touches the index is a SELECT", () => {
-  // The log's one INSERT is the only other statement, and it goes to LOG.
+test("every statement in the connector's source that touches the index is a SELECT, but create_event's record", () => {
+  // The log's one INSERT goes to LOG. calendar-write.ts inserts the event create_event made, its
+  // people and its date, into the calendar tables, always as source 'google', and does nothing else.
   const src = new URL("../src/", import.meta.url);
   for (const file of readdirSync(src).filter((f) => f.endsWith(".ts"))) {
     const text = readFileSync(new URL(file, src), "utf8");
     const writes = text.match(/\b(INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE)\s+(INTO|FROM|TABLE|INDEX|\w+\s+SET)\b/g) ?? [];
     if (file === "log.ts") assert.deepEqual(writes, ["INSERT INTO"], file);
-    else assert.deepEqual(writes, [], file);
+    else if (file === "calendar-write.ts") {
+      assert.deepEqual(text.match(/INSERT INTO \w+/g), [
+        "INSERT INTO calendar_events", "INSERT INTO calendar_attendees", "INSERT INTO calendar_occurrences",
+      ]);
+      assert.deepEqual(writes, ["INSERT INTO", "INSERT INTO", "INSERT INTO"]);
+      assert.doesNotMatch(text, /\bOR\s+REPLACE\b|ON CONFLICT/i);
+      assert.match(text, /VALUES \('google', /);
+    } else assert.deepEqual(writes, [], file);
   }
+  assert.deepEqual(Object.getOwnPropertyNames(CalendarWriter.prototype).sort(), ["constructor", "recordGoogleEvent"]);
 });
 
 test("the mail wrapper can only get and head, at keys built from a messages row", async () => {

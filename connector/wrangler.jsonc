@@ -8,6 +8,7 @@
   "workers_dev": false,
   "preview_urls": false,
   // Read only, by convention: src/store.ts is the only way in (bindings can't be made read-only).
+  // The one exception is src/calendar-write.ts, which records the events create_event made.
   "r2_buckets": [{ "binding": "MAIL", "bucket_name": "kay-os-mail" }],
   "d1_databases": [
     // The index the sync Worker writes. Its migrations live in sync-worker/migrations; none here.
@@ -27,7 +28,12 @@
     // Michael's didi account id. Empty refuses everyone and logs the id that tried: set it after
     // the first sign-in. FILE_LINK_KEY is a Worker secret, not a var (Doppler:
     // KAYOS_CONNECTOR_FILE_LINK_KEY, sent at deploy).
-    "ALLOWED_DIDI_ID": "019f39f3-9ab7-77ef-a51f-dd773d2da44d"
+    "ALLOWED_DIDI_ID": "019f39f3-9ab7-77ef-a51f-dd773d2da44d",
+    // Michael's own addresses, comma-separated: the calendar tools leave them out of people lists and
+    // counts. create_event's secrets, sent at deploy: GOOGLE_OAUTH_CLIENT_JSON (Doppler:
+    // LOSSLESS_GOOGLE_OAUTH_KAYOS_CLIENT_JSON) and GCAL_REFRESH_TOKENS, a JSON map account -> refresh
+    // token (Doppler: KAYOS_GCAL_<ACCOUNT>_REFRESH_TOKEN, one per granted account).
+    "MY_ADDRESSES": "mpstaton@gmail.com,michael@learnstart.vc,michael@humain.vc,michael@mandatory.ventures,michael@lossless.group,michael@avalanche.vc,michael@hypernova.capital,michael@colearn.com,michael.staton@the-water-foundation.com"
   },
   "observability": { "enabled": true }
 }

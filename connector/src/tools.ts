@@ -1,11 +1,18 @@
-// The four read-only tools, with the names and arguments of mail/kaymcp.py so prompts carry over.
+// The four read-only mail tools, with the names and arguments of mail/kaymcp.py so prompts carry
+// over, then the calendar tools from calendar.ts.
 // The SQL is kaymail.py's (search, find_attachments, attachment_detail), every value bound as a
 // parameter. Differences from the laptop: no draft_reply; get_attachment returns a download link
 // instead of a local path; and every sender-written field comes back inside tagged markers.
+import { type Args, ToolError, bool, int, json, limitOf, required, str } from "./args.ts";
+import { CALENDAR_HANDLERS, CALENDAR_TOOLS } from "./calendar.ts";
+import type { CalendarWriter } from "./calendar-write.ts";
 import { LINK_TTL_SECONDS, signTicket } from "./files.ts";
+import type { GoogleConfig } from "./google.ts";
 import { marked } from "./markers.ts";
 import { MAX_EML_BYTES, bodyText, cutBody, parse } from "./mime.ts";
 import type { ReadOnlyIndex, ReadOnlyMail } from "./store.ts";
+
+export { ToolError };
 
 const MAX_THREAD = 50;
 
@@ -64,10 +71,8 @@ export const TOOLS = [
     inputSchema: { type: "object", properties: { id: { type: "integer" } }, required: ["id"] },
     annotations: { readOnlyHint: true },
   },
+  ...CALENDAR_TOOLS,
 ];
-
-/** A tool's refusal: shown to Claude as `Error: ...` with isError, as kaymcp.py does. */
-export class ToolError extends Error {}
 
 export interface ToolContext {
   index: ReadOnlyIndex;
@@ -78,37 +83,15 @@ export interface ToolContext {
   origin: string;
   fileLinkKey?: string;
   nowSeconds: number;
+  /** Michael's own addresses, lowercased: left out of people lists and counts. */
+  myAddresses: string[];
+  /** kay-os's Google grant, for create_event. Unset: create_event refuses every account. */
+  google?: GoogleConfig;
+  /** Records events create_event made (source = 'google'). The one writer into the index. */
+  calendarWriter?: CalendarWriter;
+  /** Extra fields for this call's log row, e.g. the id of an event created. */
+  logged: Record<string, unknown>;
 }
-
-type Args = Record<string, unknown>;
-
-function str(args: Args, name: string): string | null {
-  const v = args[name];
-  if (v === undefined || v === null || v === "") return null;
-  if (typeof v !== "string") throw new ToolError(`${name} must be a string`);
-  return v;
-}
-
-function int(args: Args, name: string, fallback?: number): number | null {
-  const v = args[name];
-  if (v === undefined || v === null) {
-    if (fallback === undefined) return null;
-    return fallback;
-  }
-  const n = typeof v === "string" && /^-?\d+$/.test(v) ? Number(v) : v; // kaymcp.py's int() takes "5" too
-  if (typeof n !== "number" || !Number.isInteger(n)) throw new ToolError(`${name} must be an integer`);
-  return n;
-}
-
-function required(args: Args, name: string): number {
-  const n = int(args, name);
-  if (n === null) throw new ToolError(`${name} is required`);
-  return n;
-}
-
-const bool = (args: Args, name: string) => Boolean(args[name]);
-const limitOf = (args: Args, fallback: number, max: number) => Math.max(0, Math.min(int(args, "limit", fallback)!, max));
-const json = (value: unknown) => JSON.stringify(value, null, 1);
 
 /** kaymail.search */
 async function searchMail(ctx: ToolContext, args: Args): Promise<string> {
@@ -282,4 +265,5 @@ export const HANDLERS: Record<string, (ctx: ToolContext, args: Args) => Promise<
   read_message: readMessage,
   list_attachments: listAttachments,
   get_attachment: getAttachment,
+  ...CALENDAR_HANDLERS,
 };

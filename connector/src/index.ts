@@ -1,5 +1,6 @@
 // The kay-os mail connector: a remote MCP server Claude reaches at https://mcp.kay-os.lol/mcp.
-// Sign-in happens at id.didi.sh; this Worker only checks the tokens and reads D1 and R2.
+// Sign-in happens at id.didi.sh; this Worker checks the tokens and reads D1 and R2. Its one write
+// outside the call log is create_event (Google Calendar, then the event's rows in the index).
 // The routes and the protocol are in src/app.ts.
 import { handle } from "./app.ts";
 import { JwksCache, type Fetcher } from "./auth.ts";
@@ -19,6 +20,12 @@ interface Env {
   ALLOWED_DIDI_ID?: string;
   /** Secret that signs download links. Unset: get_attachment gives no link. */
   FILE_LINK_KEY?: string;
+  /** Michael's own addresses, comma-separated (a var): left out of people lists and counts. */
+  MY_ADDRESSES?: string;
+  /** Secret: the Google OAuth client JSON kay-os's calendar grant was made with. */
+  GOOGLE_OAUTH_CLIENT_JSON?: string;
+  /** Secret: {"account": "refresh token"} for the accounts create_event may write to. */
+  GCAL_REFRESH_TOKENS?: string;
   /** Comma-separated origins allowed in an Origin header, instead of the defaults below. */
   ALLOWED_ORIGINS?: string;
 }
@@ -47,6 +54,12 @@ export default {
       auth: { issuer, resource, allowedSub: env.ALLOWED_DIDI_ID?.trim() || undefined },
       jwks,
       fileLinkKey: env.FILE_LINK_KEY || undefined,
+      myAddresses: (env.MY_ADDRESSES ?? "").split(",").map((a) => a.trim().toLowerCase()).filter(Boolean),
+      google: {
+        clientJson: env.GOOGLE_OAUTH_CLIENT_JSON || undefined,
+        refreshTokens: env.GCAL_REFRESH_TOKENS || undefined,
+        fetch: (url, init) => fetch(url, init),
+      },
       allowedOrigins,
       now: Date.now,
       defer: (p) => ctx.waitUntil(p),

@@ -77,8 +77,16 @@ test("initialize, tools/list and ping answer as JSON; notifications get 202 and 
   assert.equal(await note.text(), "");
 
   const list = (await (await c.rpc("tools/list", undefined, { headers: { "mcp-protocol-version": "2025-06-18" } })).json()) as { result: { tools: { name: string; annotations: unknown }[] } };
-  assert.deepEqual(list.result.tools.map((t) => t.name), ["search_mail", "read_message", "list_attachments", "get_attachment"]);
-  assert.ok(list.result.tools.every((t) => JSON.stringify(t.annotations) === '{"readOnlyHint":true}'));
+  assert.deepEqual(list.result.tools.map((t) => t.name), [
+    "search_mail", "read_message", "list_attachments", "get_attachment",
+    "list_meetings", "meetings_with", "last_met", "people_met", "create_event",
+  ]);
+  // Every tool reads, but create_event, which says it writes to the world.
+  for (const t of list.result.tools) {
+    assert.equal(JSON.stringify(t.annotations), t.name === "create_event"
+      ? '{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":true}'
+      : '{"readOnlyHint":true}', t.name);
+  }
   assert.ok(!TOOLS.some((t) => t.name === "draft_reply"));
 
   const ping = (await (await c.rpc("ping")).json()) as { result: unknown };
