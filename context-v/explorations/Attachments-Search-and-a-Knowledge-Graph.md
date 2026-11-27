@@ -2,14 +2,14 @@
 title: "Attachments, Search, and a Knowledge Graph — Getting What's Inside the Mail Without Building a Data Platform"
 lede: "Every attachment I've ever received is already on disk, sealed inside its email. The question is how to open them up for search, meaning-based recall, and a map of who sent what, without standing up five new services to do it."
 date_created: 2026-11-24
-date_modified: 2026-11-26
+date_modified: 2026-11-27
 date_authored_initial_draft: 2026-11-24
 date_authored_current_draft: 2026-11-26
 authors:
   - Michael Staton
 augmented_with:
   - Claude Code on Claude Opus 5.5
-at_semantic_version: 0.0.1.2
+at_semantic_version: 0.0.1.3
 status: Open
 site_uuid: a41f9e8d-01db-49c7-a06a-4a65586ee528
 hex_code: jpo8k1
@@ -221,8 +221,17 @@ documents to Docling.
 | **sqlite-vec inside `index.sqlite`** | Same file as metadata and FTS5, so a hybrid query is one SQL statement with RRF. Goes to R2 with everything else. | A loadable extension. Some Python builds (macOS system Python, for one) ship `sqlite3` without extension loading; use a `uv`-managed Python. |
 | **ChromaDB** (the tree's existing corpus) | Already running here, with an MCP server agents know. | A second store that has to stay in sync with SQLite. Hybrid ranking happens in our code, across two systems. |
 | **A hosted vector store** | Reachable from the phone and the Worker. | Sends private mail text to a third party. Another bill. |
+| **Vectorize + D1 FTS5, merged in the Worker** (the cloud plan below) | Cloudflare pieces the archive already uses; rank fusion is ours to tune; vectors from Workers AI or the laptop. | We build and run chunking, embedding, re-embedding, and the fusion code ourselves. |
+| **Cloudflare AI Search, driven from the Agents SDK** *(added 2026-11-27)* | Managed: upload a document and it's chunked, embedded, and indexed in the background, with **hybrid (vector + keyword) search on by default**. Called from a Worker or an Agents SDK agent through an `ai_search_namespaces` binding: `create()` an instance, `items.upload(name, content)`, `search({ query })`. Same provider that already holds the mail. Saves building Phase 3. | Pricing and limits aren't on the docs page we read. No metadata filter is shown, so per-account scoping likely means one instance per account (the docs show per-tenant instances and namespace-wide search across `instance_ids`). Re-uploading a file re-indexes it; no delete or auto-sync shown. Doesn't run locally, so the laptop index stays keyword-only. |
 
-**Pick sqlite-vec.** Keep Chroma for the context-v corpus it already serves.
+**Pick sqlite-vec** on the laptop. Keep Chroma for the context-v corpus it
+already serves. **For the cloud, trial AI Search before building Vectorize +
+fusion ourselves**: upload humain's ~71 extracted documents into one instance,
+ask it a dozen real questions next to D1's keyword search, and decide on cost,
+quality, and per-account scoping. Sources:
+[AI Search with the Agents SDK](https://developers.cloudflare.com/ai-search/agent-sdks/agents-sdk/),
+[hybrid search](https://developers.cloudflare.com/ai-search/configuration/indexing/hybrid-search/),
+[per-tenant search](https://developers.cloudflare.com/ai-search/how-to/per-tenant-search/).
 Revisit hosting when the phone needs meaning-based search, likely together with
 the D1 question in [[Database-Setup-for-Email]].
 
@@ -403,7 +412,7 @@ text, at the same provider.
 |---|---|---|
 | Connector | A Worker serving MCP over HTTP, with OAuth | Cloudflare publishes an agents SDK and an OAuth provider library for remote MCP servers on Workers; confirm current versions before building. |
 | Metadata, keyword search, header graph | D1 (hosted SQLite) | The same schema as `index.sqlite`. **D1 caps a database at [10 GB](https://developers.cloudflare.com/d1/platform/limits), and that cap can't be raised.** Today's index is 3 GB. Split by account (one database per mailbox) from the start. Confirm FTS5 works on D1, including export and import of FTS tables, before relying on it. Rows have a 1–2 MB size cap (the docs disagree), so long bodies get truncated in the index, and the full text stays in R2. |
-| Vectors | Vectorize | Replaces sqlite-vec and libSQL vectors on the cloud side. Hybrid search becomes a few lines in the Worker: query D1 FTS5 and Vectorize, then merge with RRF. |
+| Vectors | Vectorize, **or Cloudflare AI Search** | Vectorize replaces sqlite-vec and libSQL vectors on the cloud side; hybrid search becomes a few lines in the Worker (query D1 FTS5 and Vectorize, merge with RRF). AI Search does the chunking, embedding, and hybrid ranking itself from uploaded documents, reached from the Agents SDK; to be trialled first (see *Where vectors live*). |
 | Raw mail and extracted text | R2 | Already there for raw mail. `attachments/<sha[:2]>/<sha>.md` goes in next to it. |
 | Embeddings | Workers AI, or computed on the laptop | Workers AI keeps the text inside Cloudflare and needs no laptop. |
 | Attachment extraction | Cloudflare Containers running Docling | Docling runs layout, table, and OCR models locally on CPU (PyTorch plus several hundred MB of weights), so it can't run in a Worker. A Container can, since it runs an ordinary Docker image on demand and scales to zero when idle. New mail lands in R2, a Queue message goes out, and a Worker hands the attachment to the Docling container, which writes the `.md` to R2 and the row to D1. Check that the largest instance size has enough memory for Docling (a few GB), and what the per-page cost comes to. Workers AI's document-to-Markdown conversion could take simple files cheaply; test it against Docling on a sample. |

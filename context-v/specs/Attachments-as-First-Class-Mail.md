@@ -408,6 +408,17 @@ instead of using `--immutable`. `cache/` is never pushed.
 
 ### Phase 3: Search by meaning (hybrid)
 
+> **Two ways to build this (2026-11-27).** The design below is the laptop's:
+> our own chunks, embeddings, sqlite-vec, and Reciprocal Rank Fusion. For the
+> cloud side, **Cloudflare AI Search** is the alternative to building the same
+> on Vectorize: upload each extracted Markdown file and it chunks, embeds, and
+> indexes it, with hybrid vector-plus-keyword search on by default, called
+> from a Worker or an Agents SDK agent (`ai_search_namespaces` binding,
+> `items.upload()`, `search()`). Unknowns before choosing: price, limits, and
+> scoping by account (likely one instance per account, since no metadata
+> filter is documented). Next step is a trial on humain's documents; see the
+> exploration's *Where vectors live*.
+
 **New module `mail/embed.py`**, also run with `uv`.
 
 - Splits each extracted Markdown file into chunks at headings, with a
@@ -592,6 +603,8 @@ headers.
 
 ## Open Questions (decisions needed)
 
+- [ ] **Cloud search by meaning: AI Search or our own Vectorize build?**
+      Trial AI Search on humain's documents first (cost, quality, scoping).
 - [ ] **Embedding provider for Phase 3.** Local model (private, slow on the
       backlog) or API (fast, sends attachment text out). Proposal: local by
       default, decide the model after measuring Phase 2's volume.

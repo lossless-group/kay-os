@@ -191,6 +191,19 @@ id.didi.sh. Decisions the build made against the MCP spec and Claude's docs:
 Still to do before it's usable: the `oauth_resources` entry in id.didi.sh and
 its redeploy, then the first sign-in and `ALLOWED_DIDI_ID`.
 
+**5. Cloudflare's Agents SDK as an alternative base (noted 2026-11-27).**
+The connector is hand-built: a stateless Worker speaking MCP over HTTP. The
+Agents SDK (`McpAgent`, with `@cloudflare/workers-oauth-provider` when the
+Worker is its own OAuth server) would keep the MCP transport current for us.
+That matters: on the first real connection, Claude tried MCP `2026-07-28`
+first, our server answered `400`, and Claude fell back to `2025-11-25`. The
+trade is more dependencies and Cloudflare's abstractions for less protocol
+upkeep. For now: add `2026-07-28` ourselves; revisit the SDK if the protocol
+keeps moving faster than we want to follow. The SDK's email pieces (routing
+mail sent to an address on `kay-os.lol` into an agent, sending with signed
+reply headers, auto-reply detection) are the likely base for a
+"forward it to kay" address and the daily report.
+
 **3. Settled defaults.**
 
 | Question | Answer |
