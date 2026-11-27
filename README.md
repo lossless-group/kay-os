@@ -62,6 +62,36 @@ what's inside (text extraction, search by meaning) is in
 
 Tests: `python3 -m unittest mail/test_kaymail.py mail/test_kaymcp.py`
 
+### Calendars (Google, direct)
+
+`calendar/gcal_grant.py` gives kay-os its own access to a Google account's
+calendars: read everything, and create or change events when Michael asks. It
+uses lossless's **Desktop** OAuth client (`kay-os`) in the Google Cloud
+project `mps-caldiy-sync` (owned by michael@humain.vc), whose JSON is in
+Doppler as `LOSSLESS_GOOGLE_OAUTH_KAYOS_CLIENT_JSON`, with a backup at
+`~/.config/kay-os/google/kay-os-desktop-client.json`.
+
+```bash
+doppler run --project kay-os --config prd -- python3 calendar/gcal_grant.py michael@learnstart.vc
+```
+
+It opens Google's consent page, checks that the account that signed in is the
+one asked for, and stores the refresh token in Doppler as
+`KAYOS_GCAL_<ACCOUNT>_REFRESH_TOKEN` (never printed). Then it prints the number
+of calendars and recent events as a check.
+
+- Google shows **"This app hasn't been verified"** for this client: choose
+  **Advanced → Go to … (unsafe)**. It's our own app.
+- A Workspace that blocks outside apps refuses it until the client is marked
+  **Trusted** in that domain's admin console (Security → API controls → App
+  access control).
+- If the project's publishing status is **Testing**, Google expires these
+  refresh tokens after 7 days. It needs to be **In production**.
+
+Granted so far: michael@learnstart.vc (2026-11-27). Vimcal covers eight other
+accounts for reading and booking; see
+`context-v/reminders/Vimcal-Booking-Links-Only-See-Their-Own-Account.md`.
+
 ### Agents: search, read, draft
 
 `mail/kaymcp.py` puts the archive in front of agents on this machine as an MCP
