@@ -89,7 +89,7 @@ const rules = [
 const colony = [
   {
     name: 'Archivist',
-    job: 'Mirrors every inbox into one private archive and keeps it current every five minutes. Read-only: it cannot mark, move, or delete.',
+    job: 'Mirrors every inbox into one private archive, indexes every message and attachment, and keeps it current four times a day. Read-only: it cannot mark, move, or delete.',
     status: 'LIVE',
     lamp: 'ok',
   },
@@ -107,9 +107,9 @@ const colony = [
   },
   {
     name: 'Timekeeper',
-    job: 'Reads every calendar and knows what time it is, so the Thursday double-booking turns up on Monday.',
-    status: 'PLANNED',
-    lamp: 'off',
+    job: 'Reads every calendar and knows what time it is, so the Thursday double-booking turns up on Monday. Live as tools, not yet as its own agent: eight accounts through Vimcal, twelve years of history, and "when did I last meet…" from the connector.',
+    status: 'LIVE',
+    lamp: 'ok',
   },
   {
     name: 'Parking Attendant',

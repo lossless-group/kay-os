@@ -119,7 +119,7 @@ All under `public/brand/`, outlined to paths (an `<img>` cannot load web fonts).
 
 | Piece | File | Notes |
 |---|---|---|
-| appIcon | `appIcon__Kay-OS.svg` | The 3×3 lamp panel; same art as `public/favicon.svg` |
+| appIcon | `appIcon__Kay-OS.svg` | A split-flap tile with a K: the arrivals-board flap with its hinge line, and one mint status lamp (since 2026-11-27; replaced the 3×3 lamp panel, whose lit lamps read as a down arrow). Same art as `public/favicon.svg` |
 | favicon | `../favicon.svg` | |
 | wordmark | `wordmark__Kay-OS--{Dark,Light}-Mode.svg` | "KAY-OS" in Big Shoulders Display 800, +0.06em, dash in `--color-accent` (signal amber dark, carbon light), as `Logo.astro` sets it |
 | trademark | `trademark__Kay-OS--{Dark,Light}-Mode.svg` | Panel + wordmark at `Logo.astro`'s proportions (gap = 0.32 × mark) |
